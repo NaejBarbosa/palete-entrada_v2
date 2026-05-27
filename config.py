@@ -26,6 +26,7 @@ VAGAS = [
 # Opções de Marca
 MARCA_OPCOES = [
     "",
+    "Friboi",
     "Seara",
     "Seara | Doriana",
     "Seara | Primor",
