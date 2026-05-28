@@ -35,12 +35,14 @@ def carregar_dados_existentes(sheet):
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # ✅ CORREÇÃO: converte a coluna 'validade' para datetime
+    # ✅ CORREÇÃO: limpa e converte a coluna 'validade'
     if 'validade' in df.columns:
+        # Remove aspas simples iniciais e espaços extras
+        df['validade'] = df['validade'].astype(str).str.lstrip("'").str.strip()
         df['validade'] = pd.to_datetime(
             df['validade'],
-            format='%d/%m/%Y',   # formato usado na planilha
-            errors='coerce'      # valores inválidos viram NaT
+            format='%d/%m/%Y',   # formato brasileiro
+            errors='coerce'      # converte valores inválidos em NaT
         )
 
     return df
