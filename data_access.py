@@ -33,7 +33,17 @@ def conectar_planilha():
 def carregar_dados_existentes(sheet):
     """Carrega todos os registros da planilha e retorna um DataFrame."""
     dados = sheet.get_all_records()
-    return pd.DataFrame(dados)
+    df = pd.DataFrame(dados)
+
+    # ✅ CORREÇÃO: converte a coluna 'validade' para datetime
+    if 'validade' in df.columns:
+        df['validade'] = pd.to_datetime(
+            df['validade'],
+            format='%d/%m/%Y',   # formato usado na planilha
+            errors='coerce'      # valores inválidos viram NaT
+        )
+
+    return df
 
 def combina_existe(camara, vaga, df_existente):
     """Verifica se uma combinação câmara/vaga já está cadastrada."""
