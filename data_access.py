@@ -35,15 +35,24 @@ def carregar_dados_existentes(sheet):
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # ✅ CORREÇÃO: limpa e converte a coluna 'validade'
+    # ✅ CORREÇÃO COMPLETA da coluna 'validade'
     if 'validade' in df.columns:
-        # Remove aspas simples iniciais e espaços extras
-        df['validade'] = df['validade'].astype(str).str.lstrip("'").str.strip()
+        # 1. Remove qualquer aspa simples (') e espaços extras
+        df['validade'] = (
+            df['validade']
+            .astype(str)
+            .str.replace("'", "", regex=False)  # remove aspas simples
+            .str.strip()
+        )
+        # 2. Converte para datetime, assumindo dia primeiro (DD/MM/AAAA)
         df['validade'] = pd.to_datetime(
             df['validade'],
-            format='%d/%m/%Y',   # formato brasileiro
-            errors='coerce'      # converte valores inválidos em NaT
+            dayfirst=True,
+            errors='coerce'
         )
+        # 3. Força o tipo datetime64 (caso a série tenha ficado toda NaT)
+        if df['validade'].dtype != 'datetime64[ns]':
+            df['validade'] = pd.to_datetime(df['validade'], errors='coerce')
 
     return df
 
