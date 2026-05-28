@@ -50,9 +50,16 @@ def renderizar_secao_consulta(df_existente):
     if filtro_camara != "Todas" and filtro_vaga != "Todas":
         st.write(f"**Registros encontrados para {filtro_camara} / {filtro_vaga}:**")
         if not df_filtrado.empty:
+            # ✅ Exibição com formato de data brasileiro e ordenação correta
             st.dataframe(
                 df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
-                use_container_width=True
+                use_container_width=True,
+                column_config={
+                    "validade": st.column_config.DateColumn(
+                        "Validade",
+                        format="DD/MM/YYYY"
+                    )
+                }
             )
         else:
             st.info("Nenhum registro encontrado para esta combinação.")
@@ -61,7 +68,13 @@ def renderizar_secao_consulta(df_existente):
         if not df_filtrado.empty:
             st.dataframe(
                 df_filtrado[['registro', 'camara', 'camara-vaga', 'produto-marca', 'produto-descricao', 'validade']],
-                use_container_width=True
+                use_container_width=True,
+                column_config={
+                    "validade": st.column_config.DateColumn(
+                        "Validade",
+                        format="DD/MM/YYYY"
+                    )
+                }
             )
         else:
             st.info("Nenhum registro corresponde aos filtros.")
@@ -135,7 +148,13 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
         if not df_filtrado.empty:
             st.dataframe(
                 df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
-                use_container_width=True
+                use_container_width=True,
+                column_config={
+                    "validade": st.column_config.DateColumn(
+                        "Validade",
+                        format="DD/MM/YYYY"
+                    )
+                }
             )
         else:
             st.info("Nenhum registro detalhado encontrado (inconsistência de dados).")
