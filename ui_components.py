@@ -50,7 +50,6 @@ def renderizar_secao_consulta(df_existente):
     if filtro_camara != "Todas" and filtro_vaga != "Todas":
         st.write(f"**Registros encontrados para {filtro_camara} / {filtro_vaga}:**")
         if not df_filtrado.empty:
-            # ✅ Exibição com formato de data brasileiro e ordenação correta
             st.dataframe(
                 df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
                 use_container_width=True,
