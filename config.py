@@ -26,6 +26,7 @@ VAGAS = [
 # Opções de Marca
 MARCA_OPCOES = [
     "",
+    "Copacol",
     "Friboi",
     "Seara",
     "Seara | Doriana",
