@@ -272,26 +272,30 @@ def renderizar_secao_produtos(sheet):
                 st.rerun()
 
     # ------------------------------------------------------------
-    # 2. Lista de produtos (COM ÍCONES MINIMALISTAS)
+    # 2. Lista de produtos (ÍCONES NO FINAL, ALINHADOS AO CENTRO)
     # ------------------------------------------------------------
     if st.session_state.produtos_temp:
         st.write("**Produtos neste palete:**")
         for i, prod in enumerate(st.session_state.produtos_temp):
-            col1, col2, col3 = st.columns([6, 1, 1])
-            with col1:
+            # Colunas com alinhamento vertical centralizado
+            col_texto, col_acoes = st.columns([8, 1], vertical_alignment="center")
+            with col_texto:
                 st.write(f"{i+1}. {prod['produto-marca']} - {prod['produto-descricao']} (val.: {prod['validade']})")
-            with col2:
-                if st.button("✎", key=f"edit_{i}"):   # lápis minimalista
-                    st.session_state.edit_index = i
-                    st.session_state.edit_data = prod.copy()
-                    st.rerun()
-            with col3:
-                if st.button("✕", key=f"del_{i}"):   # xis discreto
-                    st.session_state.produtos_temp.pop(i)
-                    if st.session_state.edit_index == i:
-                        st.session_state.edit_index = None
-                        st.session_state.edit_data = {}
-                    st.rerun()
+            with col_acoes:
+                # Subcolunas para os dois botões, também centralizadas
+                sub_col1, sub_col2 = st.columns(2, vertical_alignment="center")
+                with sub_col1:
+                    if st.button("✎", key=f"edit_{i}"):
+                        st.session_state.edit_index = i
+                        st.session_state.edit_data = prod.copy()
+                        st.rerun()
+                with sub_col2:
+                    if st.button("✕", key=f"del_{i}"):
+                        st.session_state.produtos_temp.pop(i)
+                        if st.session_state.edit_index == i:
+                            st.session_state.edit_index = None
+                            st.session_state.edit_data = {}
+                        st.rerun()
 
         # Botões de ação do palete (Finalizar / Cancelar)
         colA, colB = st.columns(2)
