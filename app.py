@@ -43,6 +43,11 @@ if 'exibir_gerenciamento' not in st.session_state:
     st.session_state.exibir_gerenciamento = False
 if 'check_consulta' not in st.session_state:
     st.session_state.check_consulta = False
+# Novas variáveis para edição de produtos
+if 'edit_index' not in st.session_state:
+    st.session_state.edit_index = None
+if 'edit_data' not in st.session_state:
+    st.session_state.edit_data = {}
 
 # ------------------------------
 # Conexão e carregamento de dados
