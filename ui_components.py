@@ -7,6 +7,7 @@ import config
 from data_access import combina_existe, carregar_dados_existentes, excluir_registros_vaga
 from utils import exibir_mensagem_centralizada, force_reset
 import time
+from datetime import datetime
 
 def renderizar_secao_consulta(df_existente):
     """Renderiza a seção de consulta de registros existentes."""
@@ -196,63 +197,113 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
         st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
 
 def renderizar_secao_produtos(sheet):
-    """Renderiza a seção de adição de produtos ao palete."""
-    if (not st.session_state.bloqueado and
-        st.session_state.camara and
-        st.session_state.vaga):
-
-        st.subheader("📋 Produtos no Palete")
-
-        with st.form(key="produto_form", clear_on_submit=True):
-            marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES, index=0)
-            descricao = st.text_input("Descrição do produto (ex.: Peito de frango, 1kg)")
-            data_validade = st.date_input(
-                "Validade",
-                value=None,
-                format="DD/MM/YYYY",
-                help="Selecione a data no calendário"
-            )
-            adicionado = st.form_submit_button("➕ Adicionar este produto")
-
-            if adicionado:
-                if not marca.strip():
-                    st.error("Por favor, selecione uma marca/produto válida.")
-                elif data_validade is None:
-                    st.error("Por favor, selecione a data de validade.")
-                elif not descricao.strip():
-                    st.error("Por favor, informe a descrição do produto.")
-                else:
-                    validade_str = data_validade.strftime("%d/%m/%Y")
-                    st.session_state.produtos_temp.append({
-                        "produto-marca": marca,
-                        "produto-descricao": descricao,
-                        "validade": validade_str
-                    })
-                    st.rerun()
-
-        # Exibir produtos já adicionados
-        if st.session_state.produtos_temp:
-            st.write("**Produtos neste palete:**")
-            for i, p in enumerate(st.session_state.produtos_temp, 1):
-                st.write(f"{i}. {p['produto-marca']} - {p['produto-descricao']} (val.: {p['validade']})")
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("➕ Adicionar mais", use_container_width=True, type="secondary"):
-                    st.rerun()
-            with col2:
-                if st.button("✅ Finalizar e enviar", use_container_width=True, type="primary", key="finalizar_button"):
-                    _finalizar_palete(sheet)
-            with col3:
-                if st.button("🗑️ Cancelar palete", use_container_width=True, type="secondary"):
-                    st.session_state.produtos_temp = []
-                    st.session_state.camara = None
-                    st.session_state.vaga = None
-                    st.session_state.bloqueado = False
-                    force_reset()
-    else:
+    """Renderiza a seção de adição/edição/exclusão de produtos ao palete."""
+    if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
         if st.session_state.bloqueado and not st.session_state.exibir_gerenciamento:
             st.info("💡 Altere a câmara ou vaga para uma combinação livre.")
+        return
+
+    st.subheader("📋 Produtos no Palete")
+
+    # ------------------------------------------------------------
+    # 1. Lista de produtos já adicionados (com botões Editar/Excluir)
+    # ------------------------------------------------------------
+    if st.session_state.produtos_temp:
+        st.write("**Produtos neste palete:**")
+        for i, prod in enumerate(st.session_state.produtos_temp):
+            col1, col2, col3 = st.columns([6, 1, 1])
+            with col1:
+                st.write(f"{i+1}. {prod['produto-marca']} - {prod['produto-descricao']} (val.: {prod['validade']})")
+            with col2:
+                if st.button("✏️", key=f"edit_{i}"):
+                    st.session_state.edit_index = i
+                    st.session_state.edit_data = prod.copy()
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"del_{i}"):
+                    st.session_state.produtos_temp.pop(i)
+                    if st.session_state.edit_index == i:
+                        st.session_state.edit_index = None
+                        st.session_state.edit_data = {}
+                    st.rerun()
+
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("✅ Finalizar e enviar", use_container_width=True, type="primary", key="finalizar_button"):
+                _finalizar_palete(sheet)
+        with colB:
+            if st.button("🗑️ Cancelar palete", use_container_width=True, type="secondary", key="cancelar_palete"):
+                st.session_state.produtos_temp = []
+                st.session_state.camara = None
+                st.session_state.vaga = None
+                st.session_state.bloqueado = False
+                force_reset()
+    else:
+        st.info("Nenhum produto adicionado ainda.")
+
+    # ------------------------------------------------------------
+    # 2. Formulário de adição/edição
+    # ------------------------------------------------------------
+    edit_mode = st.session_state.edit_index is not None
+
+    if edit_mode:
+        st.markdown("---")
+        col_tit, col_cancel = st.columns([4, 1])
+        with col_tit:
+            st.write("✏️ **Editar produto**")
+        with col_cancel:
+            if st.button("Cancelar edição", key="cancel_edit"):
+                st.session_state.edit_index = None
+                st.session_state.edit_data = {}
+                st.rerun()
+    else:
+        st.write("➕ **Novo produto**")
+
+    with st.form(key="produto_form", clear_on_submit=not edit_mode):
+        default_marca = ""
+        idx_marca = 0
+        if edit_mode:
+            default_marca = st.session_state.edit_data.get("produto-marca", "")
+            if default_marca in config.MARCA_OPCOES:
+                idx_marca = config.MARCA_OPCOES.index(default_marca)
+        marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES, index=idx_marca)
+
+        default_desc = st.session_state.edit_data.get("produto-descricao", "") if edit_mode else ""
+        descricao = st.text_input("Descrição do produto", value=default_desc)
+
+        validade_date = None
+        if edit_mode and st.session_state.edit_data.get("validade"):
+            try:
+                validade_date = datetime.strptime(st.session_state.edit_data["validade"], "%d/%m/%Y").date()
+            except:
+                pass
+        data_validade = st.date_input("Validade", value=validade_date, format="DD/MM/YYYY")
+
+        submit_label = "💾 Salvar alterações" if edit_mode else "➕ Adicionar este produto"
+        submitted = st.form_submit_button(submit_label)
+
+        if submitted:
+            if not marca.strip():
+                st.error("Por favor, selecione uma marca/produto válida.")
+            elif data_validade is None:
+                st.error("Por favor, selecione a data de validade.")
+            elif not descricao.strip():
+                st.error("Por favor, informe a descrição do produto.")
+            else:
+                validade_str = data_validade.strftime("%d/%m/%Y")
+                novo_produto = {
+                    "produto-marca": marca,
+                    "produto-descricao": descricao,
+                    "validade": validade_str
+                }
+                if edit_mode:
+                    idx = st.session_state.edit_index
+                    st.session_state.produtos_temp[idx] = novo_produto
+                    st.session_state.edit_index = None
+                    st.session_state.edit_data = {}
+                else:
+                    st.session_state.produtos_temp.append(novo_produto)
+                st.rerun()
 
 def _finalizar_palete(sheet):
     """Finaliza o cadastro do palete e envia para a planilha."""
