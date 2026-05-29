@@ -35,22 +35,46 @@ def carregar_dados_existentes(sheet):
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # ✅ CORREÇÃO COMPLETA da coluna 'validade'
+    # ------------------------------------------------------------
+    # 1. Conversão da coluna 'registro' (data e hora)
+    # ------------------------------------------------------------
+    if 'registro' in df.columns:
+        # Converte para string e limpa (apóstrofo, espaços)
+        df['registro'] = (
+            df['registro']
+            .astype(str)
+            .str.replace("'", "", regex=False)
+            .str.strip()
+        )
+        # Tenta converter com dayfirst=True, inferindo o formato DD/MM/AAAA HH:MM:SS
+        df['registro'] = pd.to_datetime(
+            df['registro'],
+            dayfirst=True,
+            errors='coerce'
+        )
+        # Se a conversão falhou e a coluna tem objetos datetime do gspread,
+        # apenas garante o tipo datetime64
+        if df['registro'].dtype != 'datetime64[ns]':
+            df['registro'] = pd.to_datetime(df['registro'], errors='coerce')
+
+    # ------------------------------------------------------------
+    # 2. Conversão da coluna 'validade' (apenas data)
+    # ------------------------------------------------------------
     if 'validade' in df.columns:
-        # 1. Remove qualquer aspa simples (') e espaços extras
+        # Converte para string e limpa
         df['validade'] = (
             df['validade']
             .astype(str)
-            .str.replace("'", "", regex=False)  # remove aspas simples
+            .str.replace("'", "", regex=False)
             .str.strip()
         )
-        # 2. Converte para datetime, assumindo dia primeiro (DD/MM/AAAA)
+        # Tenta converter com dayfirst=True (formato DD/MM/AAAA)
         df['validade'] = pd.to_datetime(
             df['validade'],
             dayfirst=True,
             errors='coerce'
         )
-        # 3. Força o tipo datetime64 (caso a série tenha ficado toda NaT)
+        # Se a conversão falhou e há objetos date do gspread, força datetime64
         if df['validade'].dtype != 'datetime64[ns]':
             df['validade'] = pd.to_datetime(df['validade'], errors='coerce')
 
