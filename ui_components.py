@@ -206,60 +206,24 @@ def renderizar_secao_produtos(sheet):
     st.subheader("📋 Produtos no Palete")
 
     # ------------------------------------------------------------
-    # 1. Lista de produtos já adicionados (com botões Editar/Excluir)
-    # ------------------------------------------------------------
-    if st.session_state.produtos_temp:
-        st.write("**Produtos neste palete:**")
-        for i, prod in enumerate(st.session_state.produtos_temp):
-            col1, col2, col3 = st.columns([6, 1, 1])
-            with col1:
-                st.write(f"{i+1}. {prod['produto-marca']} - {prod['produto-descricao']} (val.: {prod['validade']})")
-            with col2:
-                if st.button("✏️", key=f"edit_{i}"):
-                    st.session_state.edit_index = i
-                    st.session_state.edit_data = prod.copy()
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"del_{i}"):
-                    st.session_state.produtos_temp.pop(i)
-                    if st.session_state.edit_index == i:
-                        st.session_state.edit_index = None
-                        st.session_state.edit_data = {}
-                    st.rerun()
-
-        colA, colB = st.columns(2)
-        with colA:
-            if st.button("✅ Finalizar e enviar", use_container_width=True, type="primary", key="finalizar_button"):
-                _finalizar_palete(sheet)
-        with colB:
-            if st.button("🗑️ Cancelar palete", use_container_width=True, type="secondary", key="cancelar_palete"):
-                st.session_state.produtos_temp = []
-                st.session_state.camara = None
-                st.session_state.vaga = None
-                st.session_state.bloqueado = False
-                force_reset()
-    else:
-        st.info("Nenhum produto adicionado ainda.")
-
-    # ------------------------------------------------------------
-    # 2. Formulário de adição/edição
+    # 1. Formulário (adição ou edição) – SEMPRE NO TOPO
     # ------------------------------------------------------------
     edit_mode = st.session_state.edit_index is not None
 
     if edit_mode:
-        st.markdown("---")
-        col_tit, col_cancel = st.columns([4, 1])
+        col_tit, col_cancel = st.columns([5, 1])
         with col_tit:
-            st.write("✏️ **Editar produto**")
+            st.markdown("✎ **Editar produto**")
         with col_cancel:
-            if st.button("Cancelar edição", key="cancel_edit"):
+            if st.button("↩ Cancelar", key="cancel_edit"):
                 st.session_state.edit_index = None
                 st.session_state.edit_data = {}
                 st.rerun()
     else:
-        st.write("➕ **Novo produto**")
+        st.markdown("➕ **Novo produto**")
 
     with st.form(key="produto_form", clear_on_submit=not edit_mode):
+        # Marca
         default_marca = ""
         idx_marca = 0
         if edit_mode:
@@ -268,9 +232,11 @@ def renderizar_secao_produtos(sheet):
                 idx_marca = config.MARCA_OPCOES.index(default_marca)
         marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES, index=idx_marca)
 
+        # Descrição
         default_desc = st.session_state.edit_data.get("produto-descricao", "") if edit_mode else ""
         descricao = st.text_input("Descrição do produto", value=default_desc)
 
+        # Validade
         validade_date = None
         if edit_mode and st.session_state.edit_data.get("validade"):
             try:
@@ -304,6 +270,43 @@ def renderizar_secao_produtos(sheet):
                 else:
                     st.session_state.produtos_temp.append(novo_produto)
                 st.rerun()
+
+    # ------------------------------------------------------------
+    # 2. Lista de produtos (COM ÍCONES MINIMALISTAS)
+    # ------------------------------------------------------------
+    if st.session_state.produtos_temp:
+        st.write("**Produtos neste palete:**")
+        for i, prod in enumerate(st.session_state.produtos_temp):
+            col1, col2, col3 = st.columns([6, 1, 1])
+            with col1:
+                st.write(f"{i+1}. {prod['produto-marca']} - {prod['produto-descricao']} (val.: {prod['validade']})")
+            with col2:
+                if st.button("✎", key=f"edit_{i}"):   # lápis minimalista
+                    st.session_state.edit_index = i
+                    st.session_state.edit_data = prod.copy()
+                    st.rerun()
+            with col3:
+                if st.button("✕", key=f"del_{i}"):   # xis discreto
+                    st.session_state.produtos_temp.pop(i)
+                    if st.session_state.edit_index == i:
+                        st.session_state.edit_index = None
+                        st.session_state.edit_data = {}
+                    st.rerun()
+
+        # Botões de ação do palete (Finalizar / Cancelar)
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("✅ Finalizar e enviar", use_container_width=True, type="primary", key="finalizar_button"):
+                _finalizar_palete(sheet)
+        with colB:
+            if st.button("🗑️ Cancelar palete", use_container_width=True, type="secondary", key="cancelar_palete"):
+                st.session_state.produtos_temp = []
+                st.session_state.camara = None
+                st.session_state.vaga = None
+                st.session_state.bloqueado = False
+                force_reset()
+    else:
+        st.info("Nenhum produto adicionado ainda.")
 
 def _finalizar_palete(sheet):
     """Finaliza o cadastro do palete e envia para a planilha."""
