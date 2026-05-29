@@ -206,104 +206,75 @@ def renderizar_secao_produtos(sheet):
     st.subheader("📋 Produtos no Palete")
 
     # ------------------------------------------------------------
-    # 1. Formulário (adição ou edição) – SEMPRE NO TOPO
+    # 1. Formulário de adição (sempre no topo)
     # ------------------------------------------------------------
-    edit_mode = st.session_state.edit_index is not None
+    st.markdown("➕ **Novo produto**")
+    with st.form(key="produto_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
+        with col2:
+            descricao = st.text_input("Descrição do produto")
+        validade = st.date_input("Validade", format="DD/MM/YYYY")
 
-    if edit_mode:
-        col_tit, col_cancel = st.columns([5, 1])
-        with col_tit:
-            st.markdown("✎ **Editar produto**")
-        with col_cancel:
-            if st.button("↩ Cancelar", key="cancel_edit"):
-                st.session_state.edit_index = None
-                st.session_state.edit_data = {}
-                st.rerun()
-    else:
-        st.markdown("➕ **Novo produto**")
-
-    with st.form(key="produto_form", clear_on_submit=not edit_mode):
-        # Marca
-        default_marca = ""
-        idx_marca = 0
-        if edit_mode:
-            default_marca = st.session_state.edit_data.get("produto-marca", "")
-            if default_marca in config.MARCA_OPCOES:
-                idx_marca = config.MARCA_OPCOES.index(default_marca)
-        marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES, index=idx_marca)
-
-        # Descrição
-        default_desc = st.session_state.edit_data.get("produto-descricao", "") if edit_mode else ""
-        descricao = st.text_input("Descrição do produto", value=default_desc)
-
-        # Validade
-        validade_date = None
-        if edit_mode and st.session_state.edit_data.get("validade"):
-            try:
-                validade_date = datetime.strptime(st.session_state.edit_data["validade"], "%d/%m/%Y").date()
-            except:
-                pass
-        data_validade = st.date_input("Validade", value=validade_date, format="DD/MM/YYYY")
-
-        submit_label = "💾 Salvar alterações" if edit_mode else "➕ Adicionar este produto"
-        submitted = st.form_submit_button(submit_label)
-
-        if submitted:
+        if st.form_submit_button("➕ Adicionar"):
             if not marca.strip():
-                st.error("Por favor, selecione uma marca/produto válida.")
-            elif data_validade is None:
-                st.error("Por favor, selecione a data de validade.")
+                st.error("Selecione uma marca.")
+            elif validade is None:
+                st.error("Selecione a validade.")
             elif not descricao.strip():
-                st.error("Por favor, informe a descrição do produto.")
+                st.error("Informe a descrição.")
             else:
-                validade_str = data_validade.strftime("%d/%m/%Y")
-                novo_produto = {
+                st.session_state.produtos_temp.append({
                     "produto-marca": marca,
                     "produto-descricao": descricao,
-                    "validade": validade_str
-                }
-                if edit_mode:
-                    idx = st.session_state.edit_index
-                    st.session_state.produtos_temp[idx] = novo_produto
-                    st.session_state.edit_index = None
-                    st.session_state.edit_data = {}
-                else:
-                    st.session_state.produtos_temp.append(novo_produto)
+                    "validade": validade.strftime("%d/%m/%Y")
+                })
                 st.rerun()
 
     # ------------------------------------------------------------
-    # 2. Lista de produtos (ÍCONES NO FINAL, ALINHADOS AO CENTRO)
+    # 2. Tabela editável de produtos
     # ------------------------------------------------------------
     if st.session_state.produtos_temp:
-        st.write("**Produtos neste palete:**")
-        for i, prod in enumerate(st.session_state.produtos_temp):
-            # Colunas com alinhamento vertical centralizado
-            col_texto, col_acoes = st.columns([8, 1], vertical_alignment="center")
-            with col_texto:
-                st.write(f"{i+1}. {prod['produto-marca']} - {prod['produto-descricao']} (val.: {prod['validade']})")
-            with col_acoes:
-                # Subcolunas para os dois botões, também centralizadas
-                sub_col1, sub_col2 = st.columns(2, vertical_alignment="center")
-                with sub_col1:
-                    if st.button("✎", key=f"edit_{i}"):
-                        st.session_state.edit_index = i
-                        st.session_state.edit_data = prod.copy()
-                        st.rerun()
-                with sub_col2:
-                    if st.button("✕", key=f"del_{i}"):
-                        st.session_state.produtos_temp.pop(i)
-                        if st.session_state.edit_index == i:
-                            st.session_state.edit_index = None
-                            st.session_state.edit_data = {}
-                        st.rerun()
+        df = pd.DataFrame(st.session_state.produtos_temp)
+        # Reordena colunas para exibição
+        df = df[["produto-marca", "produto-descricao", "validade"]]
 
-        # Botões de ação do palete (Finalizar / Cancelar)
-        colA, colB = st.columns(2)
+        column_config = {
+            "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
+        }
+
+        st.write("**Produtos neste palete:**")
+        edited_df = st.data_editor(
+            df,
+            column_config=column_config,
+            num_rows="dynamic",       # permite excluir linhas com delete/backspace
+            use_container_width=True,
+            key="produtos_editor"
+        )
+
+        # Botões de ação
+        colA, colB, colC = st.columns(3)
         with colA:
-            if st.button("✅ Finalizar e enviar", use_container_width=True, type="primary", key="finalizar_button"):
-                _finalizar_palete(sheet)
+            if st.button("💾 Salvar alterações", use_container_width=True):
+                # Sincroniza o DataFrame editado com a lista oficial
+                novos_produtos = edited_df.to_dict("records")
+                for p in novos_produtos:
+                    if isinstance(p["validade"], pd.Timestamp):
+                        p["validade"] = p["validade"].strftime("%d/%m/%Y")
+                st.session_state.produtos_temp = novos_produtos
+                st.rerun()
         with colB:
-            if st.button("🗑️ Cancelar palete", use_container_width=True, type="secondary", key="cancelar_palete"):
+            if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
+                # Sincroniza antes de finalizar
+                novos_produtos = edited_df.to_dict("records")
+                for p in novos_produtos:
+                    if isinstance(p["validade"], pd.Timestamp):
+                        p["validade"] = p["validade"].strftime("%d/%m/%Y")
+                st.session_state.produtos_temp = novos_produtos
+                _finalizar_palete(sheet)
+        with colC:
+            if st.button("🗑️ Cancelar palete", use_container_width=True):
                 st.session_state.produtos_temp = []
                 st.session_state.camara = None
                 st.session_state.vaga = None
