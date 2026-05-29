@@ -54,6 +54,10 @@ def renderizar_secao_consulta(df_existente):
                 df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
                 use_container_width=True,
                 column_config={
+                    "registro": st.column_config.DatetimeColumn(
+                        "Registro",
+                        format="DD/MM/YYYY HH:mm:ss"
+                    ),
                     "validade": st.column_config.DateColumn(
                         "Validade",
                         format="DD/MM/YYYY"
@@ -69,6 +73,10 @@ def renderizar_secao_consulta(df_existente):
                 df_filtrado[['registro', 'camara', 'camara-vaga', 'produto-marca', 'produto-descricao', 'validade']],
                 use_container_width=True,
                 column_config={
+                    "registro": st.column_config.DatetimeColumn(
+                        "Registro",
+                        format="DD/MM/YYYY HH:mm:ss"
+                    ),
                     "validade": st.column_config.DateColumn(
                         "Validade",
                         format="DD/MM/YYYY"
@@ -149,6 +157,10 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                 df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
                 use_container_width=True,
                 column_config={
+                    "registro": st.column_config.DatetimeColumn(
+                        "Registro",
+                        format="DD/MM/YYYY HH:mm:ss"
+                    ),
                     "validade": st.column_config.DateColumn(
                         "Validade",
                         format="DD/MM/YYYY"
