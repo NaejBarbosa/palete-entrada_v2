@@ -185,7 +185,6 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                         mensagem = f"{num_excluidos} registro(s) excluído(s) com sucesso!<br><br>A vaga agora está livre."
                         exibir_mensagem_centralizada(mensagem, quebrar_linha=True)
                         time.sleep(3)
-                        # Recarregar dados
                         st.session_state.bloqueado = False
                         st.session_state.camara = camara_selecionada
                         st.session_state.vaga = vaga_selecionada
@@ -237,8 +236,10 @@ def renderizar_secao_produtos(sheet):
     # ------------------------------------------------------------
     if st.session_state.produtos_temp:
         df = pd.DataFrame(st.session_state.produtos_temp)
-        # Reordena colunas para exibição
         df = df[["produto-marca", "produto-descricao", "validade"]]
+
+        # Converte strings de data para datetime (para compatibilidade com DateColumn)
+        df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
 
         column_config = {
             "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
@@ -248,7 +249,7 @@ def renderizar_secao_produtos(sheet):
         edited_df = st.data_editor(
             df,
             column_config=column_config,
-            num_rows="dynamic",       # permite excluir linhas com delete/backspace
+            num_rows="dynamic",
             use_container_width=True,
             key="produtos_editor"
         )
@@ -257,20 +258,22 @@ def renderizar_secao_produtos(sheet):
         colA, colB, colC = st.columns(3)
         with colA:
             if st.button("💾 Salvar alterações", use_container_width=True):
-                # Sincroniza o DataFrame editado com a lista oficial
                 novos_produtos = edited_df.to_dict("records")
                 for p in novos_produtos:
                     if isinstance(p["validade"], pd.Timestamp):
                         p["validade"] = p["validade"].strftime("%d/%m/%Y")
+                    elif pd.isna(p["validade"]):
+                        p["validade"] = ""
                 st.session_state.produtos_temp = novos_produtos
                 st.rerun()
         with colB:
             if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
-                # Sincroniza antes de finalizar
                 novos_produtos = edited_df.to_dict("records")
                 for p in novos_produtos:
                     if isinstance(p["validade"], pd.Timestamp):
                         p["validade"] = p["validade"].strftime("%d/%m/%Y")
+                    elif pd.isna(p["validade"]):
+                        p["validade"] = ""
                 st.session_state.produtos_temp = novos_produtos
                 _finalizar_palete(sheet)
         with colC:
