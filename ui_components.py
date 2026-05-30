@@ -214,7 +214,7 @@ def renderizar_secao_produtos(sheet):
             marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
         with col2:
             descricao = st.text_input("Descrição do produto")
-        validade = st.date_input("Validade", format="DD/MM/YYYY")
+        validade = st.date_input("Validade", value=None, format="DD/MM/YYYY")
 
         if st.form_submit_button("➕ Adicionar"):
             if not marca.strip():
