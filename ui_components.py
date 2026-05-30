@@ -195,6 +195,35 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                         st.error("Nenhum registro foi excluído. Verifique se a combinação realmente existe.")
         st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
 
+def _validar_dataframe(df):
+    """Retorna (True, mensagem_erro) se houver campos vazios ou inválidos."""
+    # Verifica cada linha
+    for idx, row in df.iterrows():
+        marca = str(row.get("produto-marca", "")).strip()
+        descricao = str(row.get("produto-descricao", "")).strip()
+        validade = row.get("validade")
+        # Verifica se validade é NaT ou None
+        if pd.isna(validade) or validade == "":
+            return False, f"Linha {idx+1}: data de validade é obrigatória."
+        if not marca:
+            return False, f"Linha {idx+1}: marca é obrigatória."
+        if not descricao:
+            return False, f"Linha {idx+1}: descrição é obrigatória."
+    return True, ""
+
+def _converter_edited_df(edited_df):
+    """Converte o DataFrame editado para lista de dicionários, formatando datas."""
+    produtos = edited_df.to_dict("records")
+    for p in produtos:
+        if isinstance(p.get("validade"), pd.Timestamp):
+            p["validade"] = p["validade"].strftime("%d/%m/%Y")
+        elif pd.isna(p.get("validade")):
+            p["validade"] = ""
+        # Garante strings
+        p["produto-marca"] = str(p.get("produto-marca", "")).strip()
+        p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
+    return produtos
+
 def renderizar_secao_produtos(sheet):
     """Renderiza a seção de adição/edição/exclusão de produtos ao palete."""
     if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
@@ -238,7 +267,7 @@ def renderizar_secao_produtos(sheet):
         df = pd.DataFrame(st.session_state.produtos_temp)
         df = df[["produto-marca", "produto-descricao", "validade"]]
 
-        # Converte strings de data para datetime (para compatibilidade com DateColumn)
+        # Converte strings de data para datetime
         df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
 
         column_config = {
@@ -251,7 +280,8 @@ def renderizar_secao_produtos(sheet):
             ),
             "validade": st.column_config.DateColumn(
                 "Validade",
-                format="DD/MM/YYYY"
+                format="DD/MM/YYYY",
+                required=True
             )
         }
 
@@ -268,24 +298,21 @@ def renderizar_secao_produtos(sheet):
         colA, colB, colC = st.columns(3)
         with colA:
             if st.button("💾 Salvar alterações", use_container_width=True):
-                novos_produtos = edited_df.to_dict("records")
-                for p in novos_produtos:
-                    if isinstance(p["validade"], pd.Timestamp):
-                        p["validade"] = p["validade"].strftime("%d/%m/%Y")
-                    elif pd.isna(p["validade"]):
-                        p["validade"] = ""
-                st.session_state.produtos_temp = novos_produtos
-                st.rerun()
+                # Validar
+                ok, msg = _validar_dataframe(edited_df)
+                if not ok:
+                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                else:
+                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
+                    st.rerun()
         with colB:
             if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
-                novos_produtos = edited_df.to_dict("records")
-                for p in novos_produtos:
-                    if isinstance(p["validade"], pd.Timestamp):
-                        p["validade"] = p["validade"].strftime("%d/%m/%Y")
-                    elif pd.isna(p["validade"]):
-                        p["validade"] = ""
-                st.session_state.produtos_temp = novos_produtos
-                _finalizar_palete(sheet)
+                ok, msg = _validar_dataframe(edited_df)
+                if not ok:
+                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                else:
+                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
+                    _finalizar_palete(sheet)
         with colC:
             if st.button("🗑️ Cancelar palete", use_container_width=True):
                 st.session_state.produtos_temp = []
