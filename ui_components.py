@@ -242,7 +242,17 @@ def renderizar_secao_produtos(sheet):
         df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
 
         column_config = {
-            "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
+            "produto-marca": st.column_config.SelectboxColumn(
+                "Marca",
+                help="Selecione a marca do produto",
+                width="medium",
+                options=config.MARCA_OPCOES,
+                required=True
+            ),
+            "validade": st.column_config.DateColumn(
+                "Validade",
+                format="DD/MM/YYYY"
+            )
         }
 
         st.write("**Produtos neste palete:**")
