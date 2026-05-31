@@ -12,36 +12,31 @@ import io
 import csv
 from fpdf import FPDF
 
-# ---------------------------
-# Função auxiliar para quebrar palavras longas
-# ---------------------------
-def _quebrar_palavra_longa(palavra, largura_max, pdf):
-    """
-    Divide uma palavra em pedaços que caibam na largura máxima.
-    Retorna lista de pedaços.
-    """
+# --------------------------------------------------------------
+# Função auxiliar para quebrar palavras muito longas
+# --------------------------------------------------------------
+def _quebrar_palavra(palavra, largura_max, pdf):
+    """Divide uma palavra em pedaços que caibam na largura."""
     pedacos = []
-    sobra = palavra
-    while sobra:
+    restante = palavra
+    while restante:
         # Tenta o maior pedaço possível
-        for tamanho in range(len(sobra), 0, -1):
-            if pdf.get_string_width(sobra[:tamanho]) <= largura_max:
-                pedacos.append(sobra[:tamanho])
-                sobra = sobra[tamanho:]
+        for i in range(len(restante), 0, -1):
+            if pdf.get_string_width(restante[:i]) <= largura_max:
+                pedacos.append(restante[:i])
+                restante = restante[i:]
                 break
         else:
-            # Fallback: primeiro caractere
-            pedacos.append(sobra[0])
-            sobra = sobra[1:]
+            # Se nenhum caractere couber, quebra no primeiro
+            pedacos.append(restante[0])
+            restante = restante[1:]
     return pedacos
 
-# ---------------------------
-# Função para gerar PDF com quebra robusta de palavras longas
-# ---------------------------
+
+# --------------------------------------------------------------
+# Função principal para gerar PDF
+# --------------------------------------------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
-    """
-    Gera PDF com altura uniforme por linha e quebra de palavras longas.
-    """
     if df.empty:
         return None
 
@@ -88,11 +83,11 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
     # Dados
     pdf.set_font("Helvetica", "", 7)
-    fill = False
+    preenchido = False
     for _, row in df.iterrows():
+        # Quebra de texto para cada coluna
         textos_quebrados = []
         max_linhas = 1
-
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             largura_max = larguras[i] - 2 * MARGEM_INTERNA
@@ -101,9 +96,9 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             linha_atual = ""
             palavras = valor.split()
             for palavra in palavras:
-                # Se a palavra isolada já é maior que a largura, quebra‑la
+                # Se a palavra é maior que a largura, quebra
                 if pdf.get_string_width(palavra) > largura_max:
-                    subpalavras = _quebrar_palavra_longa(palavra, largura_max, pdf)
+                    subpalavras = _quebrar_palavra(palavra, largura_max, pdf)
                     for sub in subpalavras:
                         teste = linha_atual + (" " if linha_atual else "") + sub
                         if pdf.get_string_width(teste) <= largura_max:
@@ -131,7 +126,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
         altura_linha = max_linhas * ALTURA_LINHA_TEXTO
 
-        # Quebra de página
+        # Quebra de página se necessário
         if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 8)
@@ -141,20 +136,21 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.cell(larguras[i], 6, col, border=1, align="C", fill=True)
             pdf.ln()
             pdf.set_text_color(0, 0, 0)
-            fill = False
+            preenchido = False
 
         # Desenha a linha célula por célula
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
         for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
             pdf.set_xy(x_inicial + sum(larguras[:i]), y_inicial)
-            if fill:
+            # Cor de fundo
+            if preenchido:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
             # Retângulo com borda e fundo
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
-            # Texto linha a linha
+            # Escreve o texto linha a linha
             pdf.set_xy(pdf.get_x() + MARGEM_INTERNA, pdf.get_y() + 1)
             for j, linha in enumerate(linhas):
                 if j > 0:
@@ -165,17 +161,19 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             # Posiciona para a próxima célula
             pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
 
-        # Próxima linha
+        # Avança para a próxima linha
         pdf.set_xy(x_inicial, y_inicial + altura_linha)
-        fill = not fill
+        preenchido = not preenchido
 
+    # Gera o PDF em memória
     buffer = io.BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
 
-# ---------------------------
-# Componentes da UI (inalterados)
-# ---------------------------
+
+# --------------------------------------------------------------
+# Componentes da UI (sem alterações)
+# --------------------------------------------------------------
 def renderizar_secao_consulta(df_existente):
     st.markdown("---")
 
@@ -274,6 +272,7 @@ def renderizar_secao_consulta(df_existente):
 
     st.markdown("---")
 
+
 def renderizar_secao_cadastro(sheet, df_existente):
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
@@ -316,6 +315,7 @@ def renderizar_secao_cadastro(sheet, df_existente):
         camara_selecionada != "Selecione a câmara" and
         vaga_selecionada != "Selecione a vaga"):
         _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada)
+
 
 def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada):
     with st.expander("🔧 Gerenciar vaga ocupada", expanded=True):
@@ -361,6 +361,7 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                         st.error("Nenhum registro foi excluído. Verifique se a combinação realmente existe.")
         st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
 
+
 def _validar_dataframe(df):
     for idx, row in df.iterrows():
         marca = str(row.get("produto-marca", "")).strip()
@@ -374,6 +375,7 @@ def _validar_dataframe(df):
             return False, f"Linha {idx+1}: descrição é obrigatória."
     return True, ""
 
+
 def _converter_edited_df(edited_df):
     produtos = edited_df.to_dict("records")
     for p in produtos:
@@ -384,6 +386,7 @@ def _converter_edited_df(edited_df):
         p["produto-marca"] = str(p.get("produto-marca", "")).strip()
         p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
     return produtos
+
 
 def renderizar_secao_produtos(sheet):
     if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
@@ -469,6 +472,7 @@ def renderizar_secao_produtos(sheet):
     else:
         st.info("Nenhum produto adicionado ainda.")
 
+
 def _finalizar_palete(sheet):
     from data_access import salvar_registros
     registros_para_gravar = []
@@ -484,11 +488,4 @@ def _finalizar_palete(sheet):
         salvar_registros(sheet, registros_para_gravar)
         exibir_mensagem_centralizada(
             f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exc
+    
