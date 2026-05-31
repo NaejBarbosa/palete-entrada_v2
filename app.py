@@ -1,4 +1,4 @@
-# app.py - Com abas (Cadastrar / Consultar) - funciona no mobile
+# app.py - Abas centralizadas (funciona no mobile)
 import streamlit as st
 import time
 
@@ -11,9 +11,7 @@ from ui_components import (
 )
 from utils import exibir_mensagem_centralizada, force_reset
 
-# ------------------------------
 # Configuração da página
-# ------------------------------
 st.set_page_config(page_title="Registro de Paletes", layout="centered")
 
 # Título principal
@@ -25,18 +23,49 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# CSS mínimo (apenas para título e descrição)
+# CSS para centralizar as abas e ajustar título/descrição
 st.markdown("""
 <style>
-    h1 { text-align: center; font-size: 2.8rem; margin-bottom: 0.5rem; }
-    h2 { text-align: center; font-size: 1.5rem; margin-top: 0; color: #2c3e50; }
-    .descricao-app { text-align: center; font-size: 1rem; margin-bottom: 1.2rem; color: #555; }
+    /* Título e descrição */
+    h1 {
+        text-align: center;
+        font-size: 2.8rem;
+        margin-bottom: 0.5rem;
+    }
+    .descricao-app {
+        text-align: center;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+        color: #555;
+    }
+    
+    /* Centralizar as abas */
+    .stTabs [data-baseweb="tab-list"] {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    /* Ajuste individual das abas (remover bordas extras) */
+    .stTabs [data-baseweb="tab"] {
+        flex: 0 1 auto;
+        white-space: nowrap;
+    }
+    
+    /* Para mobile: manter alinhamento central e reduzir gap */
+    @media (max-width: 640px) {
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.8rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            font-size: 0.9rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------
 # Inicialização da sessão
-# ------------------------------
 if 'produtos_temp' not in st.session_state:
     st.session_state.produtos_temp = []
 if 'camara' not in st.session_state:
@@ -50,15 +79,11 @@ if 'exibir_gerenciamento' not in st.session_state:
 if 'reset_counter' not in st.session_state:
     st.session_state.reset_counter = 0
 
-# ------------------------------
-# Conexão e carregamento de dados
-# ------------------------------
+# Conexão e dados
 sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
-# ------------------------------
-# Abas para Cadastrar e Consultar (lado a lado no mobile)
-# ------------------------------
+# Abas centralizadas
 tab_cadastrar, tab_consultar = st.tabs(["📝 Cadastrar", "🔍 Consultar"])
 
 with tab_cadastrar:
