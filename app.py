@@ -47,7 +47,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         flex: 0 1 auto;
         white-space: nowrap;
-        font-size: 1.8rem;          /* Aumente ou diminua conforme desejar */
+        font-size: 2.3rem;          /* Aumente ou diminua conforme desejar */
         font-weight: 500;
         padding: 0.5rem 0.8rem;
     }
