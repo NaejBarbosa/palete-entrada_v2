@@ -8,9 +8,198 @@ from data_access import combina_existe, carregar_dados_existentes, excluir_regis
 from utils import exibir_mensagem_centralizada, force_reset
 import time
 from datetime import datetime
+import io
+from fpdf import FPDF
 
+# ---------------------------
+# Função para gerar PDF da tabela filtrada
+# ---------------------------
+def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
+    """
+    Gera um arquivo PDF com layout profissional (A4, zebra striping, quebra de linha automática)
+    a partir de um DataFrame.
+    Retorna bytes do PDF.
+    """
+    if df.empty:
+        return None
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Título principal
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, titulo, ln=True, align="C")
+    pdf.ln(5)
+
+    # Data de geração
+    pdf.set_font("Arial", "", 10)
+    data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    pdf.cell(0, 6, f"Gerado em: {data_geracao}", ln=True, align="R")
+    pdf.cell(0, 6, f"Total de registros: {len(df)}", ln=True, align="R")
+    pdf.ln(8)
+
+    # Definir cabeçalhos e larguras proporcionais
+    colunas = list(df.columns)
+    # Ajuste de largura (total A4 com margens = 190mm)
+    larguras = [35, 30, 28, 45, 45]  # conforme número de colunas
+    if len(colunas) == 6:
+        larguras = [32, 24, 24, 40, 40, 30]
+    elif len(colunas) == 4:
+        larguras = [40, 45, 55, 50]
+
+    # Cabeçalho com fundo cinza escuro e texto branco
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_fill_color(80, 80, 80)
+    pdf.set_text_color(255, 255, 255)
+    for i, col in enumerate(colunas):
+        pdf.cell(larguras[i], 8, col, border=1, align="C", fill=True)
+    pdf.ln()
+
+    # Alternância de cores (zebra striping)
+    pdf.set_text_color(0, 0, 0)
+    fill = False
+    for idx, row in df.iterrows():
+        # Altura da linha será dinâmica com base no conteúdo mais alto
+        max_linhas = 1
+        alturas_linhas = []
+        # Pré-calcular número de linhas necessárias para cada coluna
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            # Estima quantas linhas cabem na largura da célula
+            pdf.set_font("Arial", "", 8)
+            largura_celula = larguras[i]
+            # FPDF não tem text wrap automático, simulamos:
+            # Usamos multi_cell internamente, mas para altura precisamos calcular.
+            # Vamos usar um método simples: dividir texto por palavras
+            palavras = valor.split()
+            linha_atual = ""
+            linhas_celula = 1
+            for palavra in palavras:
+                teste = linha_atual + (" " if linha_atual else "") + palavra
+                if pdf.get_string_width(teste) <= largura_celula - 2:
+                    linha_atual = teste
+                else:
+                    linhas_celula += 1
+                    linha_atual = palavra
+            alturas_linhas.append(linhas_celula)
+            max_linhas = max(max_linhas, linhas_celula)
+
+        altura_linha = max_linhas * 5  # 5mm por linha (fonte 8)
+        # Desenhar células
+        x_inicial = pdf.get_x()
+        y_inicial = pdf.get_y()
+        pdf.set_font("Arial", "", 8)
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            # Cor de fundo alternada
+            if fill:
+                pdf.set_fill_color(230, 230, 230)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            pdf.set_y(y_inicial)
+            pdf.set_x(x_inicial + sum(larguras[:i]))
+            # Escrever com multi_cell na altura calculada
+            pdf.multi_cell(larguras[i], 5, valor, border=1, align="L", fill=fill)
+        pdf.set_y(y_inicial + altura_linha)
+        pdf.set_x(x_inicial)
+        fill = not fill
+
+    # Retornar bytes do PDF
+    return pdf.output(dest='S').encode('latin1')  # FPDF retorna bytes com latin1
+    # Nota: FPDF2 pode retornar bytes com output(dest='S'), mas precisamos garantir codificação.
+    # Ajuste: usar io.BytesIO
+    # Vou reimplementar usando buffer de bytes para garantir.
+
+# Implementação alternativa usando buffer
+def gerar_pdf_tabela_seguro(df, titulo="Relatório de Paletes"):
+    if df.empty:
+        return None
+    from fpdf import FPDF
+    import io
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Título
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, titulo, ln=True, align="C")
+    pdf.ln(5)
+
+    # Data e total
+    pdf.set_font("Arial", "", 10)
+    data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    pdf.cell(0, 6, f"Gerado em: {data_geracao}", ln=True, align="R")
+    pdf.cell(0, 6, f"Total de registros: {len(df)}", ln=True, align="R")
+    pdf.ln(8)
+
+    colunas = list(df.columns)
+    # Definir larguras conforme número de colunas
+    if len(colunas) == 6:
+        larguras = [32, 24, 24, 40, 40, 30]
+    elif len(colunas) == 4:
+        larguras = [40, 45, 55, 50]
+    else:
+        larguras = [35, 30, 28, 45, 45]
+
+    # Cabeçalho
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_fill_color(80, 80, 80)
+    pdf.set_text_color(255, 255, 255)
+    for i, col in enumerate(colunas):
+        pdf.cell(larguras[i], 8, col, border=1, align="C", fill=True)
+    pdf.ln()
+    pdf.set_text_color(0, 0, 0)
+
+    # Dados com zebra
+    fill = False
+    for idx, row in df.iterrows():
+        # Calcular altura máxima da linha
+        alturas = []
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            pdf.set_font("Arial", "", 8)
+            # Número aproximado de linhas: largura da célula
+            # Usamos get_string_width e quebra manual
+            largura_util = larguras[i] - 2
+            palavras = valor.split()
+            linhas = 1
+            linha_atual = ""
+            for palavra in palavras:
+                if pdf.get_string_width(linha_atual + (" " if linha_atual else "") + palavra) <= largura_util:
+                    linha_atual = linha_atual + (" " if linha_atual else "") + palavra
+                else:
+                    linhas += 1
+                    linha_atual = palavra
+            alturas.append(linhas)
+        altura_linha = max(alturas) * 5
+        x_inicial = pdf.get_x()
+        y_inicial = pdf.get_y()
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            pdf.set_font("Arial", "", 8)
+            pdf.set_y(y_inicial)
+            pdf.set_x(x_inicial + sum(larguras[:i]))
+            if fill:
+                pdf.set_fill_color(230, 230, 230)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            pdf.multi_cell(larguras[i], 5, valor, border=1, align="L", fill=fill)
+        pdf.set_y(y_inicial + altura_linha)
+        pdf.set_x(x_inicial)
+        fill = not fill
+
+    # Gerar bytes do PDF
+    buffer = io.BytesIO()
+    pdf.output(buffer)
+    return buffer.getvalue()
+
+# ---------------------------
+# Componentes da UI
+# ---------------------------
 def renderizar_secao_consulta(df_existente):
-    """Renderiza a seção de consulta de registros existentes com botão de download CSV compatível com Excel Brasil e Google Sheets."""
+    """Renderiza a seção de consulta com botões para CSV e PDF."""
     st.markdown("---")
 
     col_f1, col_f2 = st.columns(2)
@@ -82,14 +271,10 @@ def renderizar_secao_consulta(df_existente):
         else:
             st.info("Nenhum registro corresponde aos filtros.")
 
-    # --- BOTÃO DE DOWNLOAD CSV (com separador ponto e vírgula) ---
+    # Botões de exportação (CSV e PDF) - apenas se houver dados
     if not df_filtrado.empty:
-        import csv
-        from io import StringIO
-
+        # Preparar DataFrame para exportação (datas formatadas)
         df_export = df_filtrado.copy()
-
-        # Formata as colunas de data para o padrão brasileiro
         if 'registro' in df_export.columns:
             df_export['registro'] = pd.to_datetime(df_export['registro'], errors='coerce')
             df_export['registro'] = df_export['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
@@ -97,27 +282,38 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
 
-        # Converte para CSV com separador ';' e aspas (compatível com Excel Brasil)
-        output = StringIO()
-        df_export.to_csv(
-            output,
-            index=False,
-            sep=';',
-            encoding='utf-8-sig',      # BOM para reconhecimento de acentos no Excel
-            quoting=csv.QUOTE_ALL,      # Coloca aspas em TODOS os campos (mais seguro)
-            quotechar='"'
-        )
-        csv_data = output.getvalue().encode('utf-8-sig')
-
-        st.download_button(
-            label="📥 Baixar relatório (CSV para Excel/Google)",
-            data=csv_data,
-            file_name="relatorio_paletes.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-        st.caption("✅ Formato: separador **ponto e vírgula (;)** | Aspas em todos os campos | UTF-8 com BOM")
-        st.caption("📌 **No Google Sheets**: Ao importar, escolha 'Separador personalizado' e digite **;**")
+        col_botao1, col_botao2 = st.columns(2)
+        with col_botao1:
+            # CSV
+            import csv
+            from io import StringIO
+            output_csv = StringIO()
+            df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
+            csv_data = output_csv.getvalue().encode('utf-8-sig')
+            st.download_button(
+                label="📥 Baixar CSV",
+                data=csv_data,
+                file_name="relatorio_paletes.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_botao2:
+            # PDF
+            if st.button("📄 Baixar PDF (A4)", use_container_width=True):
+                with st.spinner("Gerando PDF..."):
+                    pdf_bytes = gerar_pdf_tabela_seguro(df_export, titulo="Relatório de Paletes - Perecíveis 410")
+                    if pdf_bytes:
+                        st.download_button(
+                            label="✅ Clique para salvar PDF",
+                            data=pdf_bytes,
+                            file_name="relatorio_paletes.pdf",
+                            mime="application/pdf",
+                            key="pdf_download_ready"
+                        )
+                    else:
+                        st.error("Erro ao gerar PDF. Tente novamente.")
+    else:
+        st.info("Nenhum dado para exportar.")
 
     st.markdown("---")
 
@@ -303,61 +499,4 @@ def renderizar_secao_produtos(sheet):
 
         st.write("**Produtos neste palete:**")
         edited_df = st.data_editor(
-            df,
-            column_config=column_config,
-            num_rows="dynamic",
-            use_container_width=True,
-            key="produtos_editor"
-        )
-
-        colA, colB, colC = st.columns(3)
-        with colA:
-            if st.button("💾 Salvar alterações", use_container_width=True):
-                ok, msg = _validar_dataframe(edited_df)
-                if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
-                else:
-                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
-                    st.rerun()
-        with colB:
-            if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
-                ok, msg = _validar_dataframe(edited_df)
-                if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
-                else:
-                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
-                    _finalizar_palete(sheet)
-        with colC:
-            if st.button("🗑️ Cancelar palete", use_container_width=True):
-                st.session_state.produtos_temp = []
-                st.session_state.camara = None
-                st.session_state.vaga = None
-                st.session_state.bloqueado = False
-                force_reset()
-    else:
-        st.info("Nenhum produto adicionado ainda.")
-
-def _finalizar_palete(sheet):
-    from data_access import salvar_registros
-    registros_para_gravar = []
-    for prod in st.session_state.produtos_temp:
-        registros_para_gravar.append({
-            "camara": st.session_state.camara,
-            "camara-vaga": st.session_state.vaga,
-            "produto-marca": prod["produto-marca"],
-            "produto-descricao": prod["produto-descricao"],
-            "validade": prod["validade"]
-        })
-    try:
-        salvar_registros(sheet, registros_para_gravar)
-        exibir_mensagem_centralizada(
-            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+            
