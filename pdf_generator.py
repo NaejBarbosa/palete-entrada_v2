@@ -3,7 +3,7 @@ import io
 from datetime import datetime
 import pandas as pd
 from fpdf import FPDF
-import pytz   # <-- adicionado para usar o mesmo timezone do registro
+import pytz
 
 
 def quebrar_palavra(palavra, largura_max, pdf):
@@ -47,7 +47,7 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "", 8)
-    # Ajuste: agora usa o mesmo fuso horário do campo 'registro' (America/Sao_Paulo)
+    # Fuso horário consistente com o campo 'registro' da planilha
     tz = pytz.timezone('America/Sao_Paulo')
     data_geracao = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
@@ -55,8 +55,10 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(4)
 
     colunas = list(df.columns)
+    # Ajuste de larguras para evitar cabeçalho comprimido
     if len(colunas) == 6:
-        larguras = [26, 18, 16, 26, 38, 18]
+        # [registro, camara, camara-vaga, produto-marca, produto-descricao, validade]
+        larguras = [22, 18, 22, 26, 38, 18]   # antes era [26, 18, 16, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
     else:
