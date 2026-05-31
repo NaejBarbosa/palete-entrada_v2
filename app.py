@@ -24,7 +24,19 @@ st.title("❄️ Entrada de Paletes | Perecíveis")
 # ------------------------------
 st.markdown("""
 <style>
-    /* Seus estilos CSS personalizados aqui */
+    /* Centraliza e ajusta proporção do título principal (h1) */
+    h1 {
+        text-align: center;
+        font-size: 2.8rem;   /* Altere o tamanho conforme desejar */
+        margin-bottom: 0.5rem;
+    }
+    /* Centraliza e ajusta proporção do subtítulo (h2) */
+    h2 {
+        text-align: center;
+        font-size: 2rem;      /* Altere o tamanho conforme desejar */
+        margin-top: 0;
+        color: #2c3e50;       /* Cor opcional para o subtítulo */
+    }
 </style>
 """, unsafe_allow_html=True)
 
