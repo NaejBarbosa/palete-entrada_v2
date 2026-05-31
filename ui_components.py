@@ -35,7 +35,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     LARGURA = 160
     ALTURA = 220
     MARGEM = 8
-    ALT_LINHA = 4
+    ALT_LINHA = 4  # altura de cada linha de texto
 
     pdf = FPDF('P', 'mm', (LARGURA, ALTURA))
     pdf.set_auto_page_break(True, MARGEM)
@@ -43,10 +43,12 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_right_margin(MARGEM)
     pdf.add_page()
 
+    # Título
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 8, titulo, ln=1, align="C")
     pdf.ln(3)
 
+    # Data e total
     pdf.set_font("Helvetica", "", 8)
     data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
@@ -61,7 +63,10 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     else:
         larguras = [28, 24, 20, 36, 36]
 
-    # cabeçalho
+    # Índice da coluna "produto-descricao" (assumindo ordem padrão)
+    idx_descricao = colunas.index("produto-descricao") if "produto-descricao" in colunas else -1
+
+    # Cabeçalho
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
@@ -73,49 +78,9 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     zebra = False
     for _, row in df.iterrows():
-        # calcular número de linhas por coluna
-        linhas_por_col = []
-        for i, col in enumerate(colunas):
-            valor = str(row[col]) if pd.notna(row[col]) else ""
-            larg_max = larguras[i] - 2
-            palavras = valor.split()
-            cont = 1
-            linha_atual = ""
-            for palavra in palavras:
-                if pdf.get_string_width(palavra) > larg_max:
-                    subs = _quebrar_palavra(palavra, larg_max, pdf)
-                    for sub in subs:
-                        teste = linha_atual + (" " if linha_atual else "") + sub
-                        if pdf.get_string_width(teste) <= larg_max:
-                            linha_atual = teste
-                        else:
-                            cont += 1
-                            linha_atual = sub
-                else:
-                    teste = linha_atual + (" " if linha_atual else "") + palavra
-                    if pdf.get_string_width(teste) <= larg_max:
-                        linha_atual = teste
-                    else:
-                        cont += 1
-                        linha_atual = palavra
-            linhas_por_col.append(cont)
-        max_linhas = max(linhas_por_col)
-        altura_linha = max_linhas * ALT_LINHA
-
-        if pdf.get_y() + altura_linha > ALTURA - MARGEM:
-            pdf.add_page()
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_fill_color(80, 80, 80)
-            pdf.set_text_color(255, 255, 255)
-            for i, col in enumerate(colunas):
-                pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
-            pdf.ln()
-            pdf.set_text_color(0, 0, 0)
-            zebra = False
-
-        # desenha a linha
-        x0 = pdf.get_x()
-        y0 = pdf.get_y()
+        # Calcular número de linhas por coluna e guardar textos quebrados
+        textos_quebrados = []
+        max_linhas = 1
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             larg_max = larguras[i] - 2
@@ -145,18 +110,54 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 linhas.append(linha_atual)
             if not linhas:
                 linhas = [""]
+            textos_quebrados.append(linhas)
+            if len(linhas) > max_linhas:
+                max_linhas = len(linhas)
 
+        altura_linha = max_linhas * ALT_LINHA
+
+        # Quebra de página
+        if pdf.get_y() + altura_linha > ALTURA - MARGEM:
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_fill_color(80, 80, 80)
+            pdf.set_text_color(255, 255, 255)
+            for i, col in enumerate(colunas):
+                pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
+            pdf.ln()
+            pdf.set_text_color(0, 0, 0)
+            zebra = False
+
+        # Desenhar a linha
+        x0 = pdf.get_x()
+        y0 = pdf.get_y()
+        for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
             pdf.set_xy(x0 + sum(larguras[:i]), y0)
+            # Cor de fundo
             if zebra:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            pdf.rect(pdf.get_x(), pdf.get_y(), larguras[i], altura_linha, 'DF')
-            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)
+            # Desenha retângulo com borda e fundo
+            pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
+
+            # Alinhamento horizontal e vertical
+            eh_descricao = (i == idx_descricao)
+            # Centralizar verticalmente: calcular deslocamento Y
+            altura_texto = len(linhas) * ALT_LINHA
+            offset_y = (altura_linha - altura_texto) / 2.0
+            # Posicionar o texto
+            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + offset_y)
             for j, linha in enumerate(linhas):
                 if j > 0:
-                    pdf.set_xy(pdf.get_x() - larguras[i] + 1, pdf.get_y() + ALT_LINHA * j)
-                pdf.cell(larguras[i] - 2, ALT_LINHA, linha, 0, 0, "L")
+                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + ALT_LINHA * j)
+                # Alinhamento horizontal
+                if eh_descricao:
+                    align = "L"
+                else:
+                    align = "C"
+                pdf.cell(largura - 2, ALT_LINHA, linha, 0, 0, align)
+            # Posiciona para a próxima célula
             pdf.set_xy(x0 + sum(larguras[:i+1]), y0)
 
         pdf.set_xy(x0, y0 + altura_linha)
@@ -234,7 +235,7 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
         
-        # 🔥 LIMITA A DESCRIÇÃO A 100 CARACTERES PARA EVITAR ESTOURO
+        # Limita a descrição a 100 caracteres para evitar estouro
         if 'produto-descricao' in df_export.columns:
             df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
 
