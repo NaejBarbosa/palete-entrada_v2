@@ -13,32 +13,7 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função auxiliar para quebrar palavras muito longas
-# ---------------------------
-def quebrar_palavra_longa(palavra, largura_max, pdf, fonte="Helvetica", tamanho=7):
-    """
-    Divide uma palavra em partes menores que caibam na largura máxima.
-    Retorna lista de pedaços.
-    """
-    pdf.set_font(fonte, "", tamanho)
-    if pdf.get_string_width(palavra) <= largura_max:
-        return [palavra]
-    pedacos = []
-    inicio = 0
-    while inicio < len(palavra):
-        # Tenta pegar o máximo de caracteres que caiba
-        fim = inicio + 1
-        while fim <= len(palavra):
-            if pdf.get_string_width(palavra[inicio:fim]) <= largura_max:
-                fim += 1
-            else:
-                break
-        pedacos.append(palavra[inicio:fim-1])
-        inicio = fim - 1
-    return pedacos
-
-# ---------------------------
-# Função para gerar PDF com quebra de linha adequada
+# Função para gerar PDF com quebra robusta de palavras longas
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
@@ -50,6 +25,8 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     LARGURA_PAGINA_MM = 160
     ALTURA_PAGINA_MM = 220
     MARGEM = 8
+    ALTURA_LINHA_TEXTO = 4  # mm por linha
+    MARGEM_INTERNA = 1.5    # mm
 
     pdf = FPDF(orientation='P', unit='mm', format=(LARGURA_PAGINA_MM, ALTURA_PAGINA_MM))
     pdf.set_auto_page_break(auto=True, margin=MARGEM)
@@ -91,35 +68,62 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for idx, row in df.iterrows():
-        # --- Pré-calcular linhas quebradas e altura máxima ---
-        textos_quebrados = []  # lista de listas de strings (cada célula)
+        # --- Pré-calcular linhas quebradas para cada célula ---
+        textos_quebrados = []
         max_linhas = 1
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            largura_max = larguras[i] - 2  # margem interna
-            # Dividir em palavras
-            palavras = valor.split()
+            largura_max = larguras[i] - MARGEM_INTERNA * 2  # margem interna dos dois lados
+
+            # Função local para quebrar uma palavra muito longa em pedaços que caibam
+            def quebrar_palavra(palavra):
+                pedacos = []
+                while palavra:
+                    # Tenta pegar o máximo de caracteres que caiba
+                    for tam in range(len(palavra), 0, -1):
+                        if pdf.get_string_width(palavra[:tam]) <= largura_max:
+                            pedacos.append(palavra[:tam])
+                            palavra = palavra[tam:]
+                            break
+                    else:
+                        # Se nenhum caractere couber (largura_max muito pequena), força um caractere
+                        pedacos.append(palavra[0])
+                        palavra = palavra[1:]
+                return pedacos
+
             linhas = []
             linha_atual = ""
+            # Divide o texto em palavras (separadas por espaço)
+            palavras = valor.split()
             for palavra in palavras:
                 # Se a palavra já é maior que a largura, quebrá-la
-                subpalavras = quebrar_palavra_longa(palavra, largura_max, pdf, "Helvetica", 7)
-                for sub in subpalavras:
-                    teste = linha_atual + (" " if linha_atual else "") + sub
+                if pdf.get_string_width(palavra) > largura_max:
+                    subpalavras = quebrar_palavra(palavra)
+                    for sub in subpalavras:
+                        teste = linha_atual + (" " if linha_atual else "") + sub
+                        if pdf.get_string_width(teste) <= largura_max:
+                            linha_atual = teste
+                        else:
+                            if linha_atual:
+                                linhas.append(linha_atual)
+                            linha_atual = sub
+                else:
+                    teste = linha_atual + (" " if linha_atual else "") + palavra
                     if pdf.get_string_width(teste) <= largura_max:
                         linha_atual = teste
                     else:
                         if linha_atual:
                             linhas.append(linha_atual)
-                        linha_atual = sub
+                        linha_atual = palavra
             if linha_atual:
                 linhas.append(linha_atual)
-            if not linhas:
+            if not linhas:  # valor vazio
                 linhas = [""]
             textos_quebrados.append(linhas)
             if len(linhas) > max_linhas:
                 max_linhas = len(linhas)
-        altura_linha = max_linhas * 4  # 4mm por linha
+
+        altura_linha = max_linhas * ALTURA_LINHA_TEXTO
 
         # Quebra de página
         if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
@@ -133,27 +137,26 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # --- Desenhar a linha com altura uniforme ---
+        # --- Desenhar a linha célula por célula com altura uniforme ---
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
         pdf.set_font("Helvetica", "", 7)
         for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
-            # Posicionar célula
             pdf.set_xy(x_inicial + sum(larguras[:i]), y_inicial)
             # Cor de fundo
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Desenha retângulo de fundo e borda
+            # Desenha retângulo com borda e fundo
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
-            # Escrever texto linha a linha com margem de 1mm
-            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)
+            # Escreve o texto linha a linha com margem interna
+            pdf.set_xy(pdf.get_x() + MARGEM_INTERNA, pdf.get_y() + 1)
             for j, linha in enumerate(linhas):
                 if j > 0:
-                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + 4 * j)
-                pdf.cell(largura - 2, 4, linha, ln=0, align="L")
-            # Restaura posição para a próxima célula
+                    pdf.set_xy(pdf.get_x() - largura + MARGEM_INTERNA, pdf.get_y() + ALTURA_LINHA_TEXTO * j)
+                pdf.cell(largura - MARGEM_INTERNA * 2, ALTURA_LINHA_TEXTO, linha, ln=0, align="L")
+            # Posiciona para a próxima célula
             pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
         # Avança para a próxima linha
         pdf.set_xy(x_inicial, y_inicial + altura_linha)
@@ -473,13 +476,4 @@ def _finalizar_palete(sheet):
     try:
         salvar_registros(sheet, registros_para_gravar)
         exibir_mensagem_centralizada(
-            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+            f"{len(registros_para_gravar)} produt
