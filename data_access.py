@@ -18,21 +18,49 @@ def conectar_planilha():
     client = gspread.authorize(creds)
     sheet = client.open_by_key(config.SHEET_ID)
 
-    # Aba de inclusões
-    try:
-        aba_inclusoes = sheet.worksheet("Inclusoes")
-    except gspread.WorksheetNotFound:
-        aba_inclusoes = sheet.add_worksheet(title="Inclusoes", rows=1000, cols=7)
-        aba_inclusoes.append_row(config.COLUNAS_INCLUSOES)
+    # Lista os nomes de todas as abas (preservando a capitalização original)
+    nomes_abas = [ws.title for ws in sheet.worksheets()]
 
-    # Aba de log de exclusões
-    try:
-        aba_log = sheet.worksheet("log_exclusoes")
-    except gspread.WorksheetNotFound:
+    # ---- Aba de inclusões (case‑insensitive, esperamos "inclusoes" com i minúsculo) ----
+    aba_inclusoes = None
+    for nome in nomes_abas:
+        if nome.lower() == "inclusoes":
+            aba_inclusoes = sheet.worksheet(nome)
+            break
+    if aba_inclusoes is None:
+        # Cria a aba com o nome padronizado (minúsculo)
+        aba_inclusoes = sheet.add_worksheet(title="inclusoes", rows=1000, cols=7)
+        aba_inclusoes.append_row(config.COLUNAS_INCLUSOES)
+    else:
+        # Garante que os cabeçalhos estão corretos (caso falte alguma coluna)
+        _garantir_cabecalho(aba_inclusoes, config.COLUNAS_INCLUSOES)
+
+    # ---- Aba de log de exclusões (case‑insensitive) ----
+    aba_log = None
+    for nome in nomes_abas:
+        if nome.lower() == "log_exclusoes":
+            aba_log = sheet.worksheet(nome)
+            break
+    if aba_log is None:
         aba_log = sheet.add_worksheet(title="log_exclusoes", rows=1000, cols=7)
         aba_log.append_row(config.COLUNAS_LOG_EXCLUSAO)
+    else:
+        _garantir_cabecalho(aba_log, config.COLUNAS_LOG_EXCLUSAO)
 
     return client, aba_inclusoes, aba_log
+
+def _garantir_cabecalho(worksheet, colunas_esperadas):
+    """Verifica se a primeira linha tem as colunas esperadas, se não, ajusta."""
+    header = worksheet.row_values(1)
+    # Se o cabeçalho existente for menor que o esperado, adiciona colunas faltantes
+    if len(header) < len(colunas_esperadas):
+        for i, col in enumerate(colunas_esperadas):
+            if i >= len(header) or header[i] != col:
+                worksheet.update_cell(1, i+1, col)
+    # Se o cabeçalho estiver completamente diferente (opcional), substitui
+    # (comente a linha abaixo se preferir não sobrescrever)
+    elif header != colunas_esperadas:
+        worksheet.update('A1:' + chr(65+len(colunas_esperadas)-1) + '1', [colunas_esperadas])
 
 def carregar_dados_existentes(aba_inclusoes):
     """Carrega todos os registros da aba Inclusoes e retorna DataFrame."""
