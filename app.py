@@ -32,7 +32,7 @@ st.markdown("""
         text-align: center;
         font-size: 1rem;
         margin-bottom: 2rem;
-        color: #555;
+        color: #A9A9A9;
     }
     
     /* Centralizar abas */
