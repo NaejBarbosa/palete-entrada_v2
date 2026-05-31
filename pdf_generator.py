@@ -3,6 +3,7 @@ import io
 from datetime import datetime
 import pandas as pd
 from fpdf import FPDF
+import pytz   # <-- adicionado para usar o mesmo timezone do registro
 
 
 def quebrar_palavra(palavra, largura_max, pdf):
@@ -46,7 +47,9 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "", 8)
-    data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    # Ajuste: agora usa o mesmo fuso horário do campo 'registro' (America/Sao_Paulo)
+    tz = pytz.timezone('America/Sao_Paulo')
+    data_geracao = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
     pdf.cell(0, 5, f"Total: {len(df)} registros", ln=1, align="R")
     pdf.ln(4)
