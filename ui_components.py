@@ -91,12 +91,8 @@ def renderizar_secao_cadastro(sheet, df_existente):
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
 
-    # Compatibilidade com versões antigas e novas do Streamlit
-    try:
-        reset_token = int(st.query_params.get("reset_token", 0))
-    except AttributeError:
-        params = st.experimental_get_query_params()
-        reset_token = int(params.get("reset_token", [0])[0])
+    # Obtém o contador de reset do session_state (incrementado pelo force_reset)
+    reset_token = st.session_state.get('reset_counter', 0)
 
     camara_selecionada = st.selectbox(
         "Câmara",
