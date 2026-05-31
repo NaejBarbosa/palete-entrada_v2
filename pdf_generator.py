@@ -47,7 +47,6 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "", 8)
-    # Fuso horário consistente com o campo 'registro' da planilha
     tz = pytz.timezone('America/Sao_Paulo')
     data_geracao = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
@@ -55,10 +54,9 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(4)
 
     colunas = list(df.columns)
-    # Ajuste de larguras para evitar cabeçalho comprimido
     if len(colunas) == 6:
         # [registro, camara, camara-vaga, produto-marca, produto-descricao, validade]
-        larguras = [22, 18, 22, 26, 38, 18]   # antes era [26, 18, 16, 26, 38, 18]
+        larguras = [22, 18, 22, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
     else:
@@ -131,7 +129,9 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
 
         x0 = pdf.get_x()
         y0 = pdf.get_y()
-        for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
+
+        # Desenha fundo da linha inteira (todas as células)
+        for i, largura in enumerate(larguras):
             pdf.set_xy(x0 + sum(larguras[:i]), y0)
             if zebra:
                 pdf.set_fill_color(230, 230, 230)
@@ -139,20 +139,22 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
                 pdf.set_fill_color(255, 255, 255)
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
 
+        # Agora desenha o texto célula por célula
+        for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
             largura_util = largura - 2 * MARGEM_INTERNA
             altura_texto_util = len(linhas) * ALTURA_LINHA_TEXTO
             offset_y = (altura_linha - 2 * MARGEM_INTERNA - altura_texto_util) / 2.0
+            x_celula = x0 + sum(larguras[:i]) + MARGEM_INTERNA
             y_texto = y0 + MARGEM_INTERNA + offset_y
 
             eh_descricao = (i == idx_descricao)
-            pdf.set_xy(x0 + sum(larguras[:i]) + MARGEM_INTERNA, y_texto)
+            align = "L" if eh_descricao else "C"
+
             for j, linha in enumerate(linhas):
-                if j > 0:
-                    pdf.set_xy(pdf.get_x() - largura + MARGEM_INTERNA,
-                               pdf.get_y() + ALTURA_LINHA_TEXTO * j)
-                align = "L" if eh_descricao else "C"
+                y_atual = y_texto + j * ALTURA_LINHA_TEXTO
+                pdf.set_xy(x_celula, y_atual)
+                # Usa cell com largura exata e sem borda, alinhado conforme necessário
                 pdf.cell(largura_util, ALTURA_LINHA_TEXTO, linha, 0, 0, align)
-            pdf.set_xy(x0 + sum(larguras[:i+1]), y0)
 
         pdf.set_xy(x0, y0 + altura_linha)
         zebra = not zebra
