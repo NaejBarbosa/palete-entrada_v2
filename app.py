@@ -52,10 +52,7 @@ st.markdown("""
         margin-bottom: 1.2rem;
         color: #555;
     }
-    /* Remove o estilo padrão do botão Streamlit dentro do container */
-    .stButton button {
-        width: 100%;
-    }
+    /* Removido o estilo que forçava largura 100% nos botões */
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,18 +81,20 @@ sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
 # ------------------------------
-# Dois botões centralizados (Cadastrar / Consultar)
+# Dois botões centralizados (Cadastrar / Consultar) - LADO A LADO
 # ------------------------------
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("📝 Cadastrar", use_container_width=True, 
+        if st.button("📝 Cadastrar", 
+                     use_container_width=False,   # alterado para False
                      type="primary" if st.session_state.modo == "Cadastrar" else "secondary"):
             st.session_state.modo = "Cadastrar"
             st.rerun()
     with col_b:
-        if st.button("🔍 Consultar", use_container_width=True,
+        if st.button("🔍 Consultar", 
+                     use_container_width=False,   # alterado para False
                      type="primary" if st.session_state.modo == "Consultar" else "secondary"):
             st.session_state.modo = "Consultar"
             st.rerun()
