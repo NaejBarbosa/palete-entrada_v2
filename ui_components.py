@@ -35,7 +35,8 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     LARGURA = 160
     ALTURA = 220
     MARGEM = 8
-    ALT_LINHA = 4
+    ALT_LINHA = 4          # altura de cada linha de texto (mm)
+    MARGEM_INTERNA = 2     # espaçamento interno da célula (mm) - aumentado de 1 para 2
 
     pdf = FPDF('P', 'mm', (LARGURA, ALTURA))
     pdf.set_auto_page_break(True, MARGEM)
@@ -79,16 +80,17 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         max_linhas = 1
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            larg_max = larguras[i] - 2
+            # Largura disponível para o texto (descontando margens internas)
+            largura_texto = larguras[i] - 2 * MARGEM_INTERNA
             palavras = valor.split()
             linhas = []
             linha_atual = ""
             for palavra in palavras:
-                if pdf.get_string_width(palavra) > larg_max:
-                    subs = _quebrar_palavra(palavra, larg_max, pdf)
+                if pdf.get_string_width(palavra) > largura_texto:
+                    subs = _quebrar_palavra(palavra, largura_texto, pdf)
                     for sub in subs:
                         teste = linha_atual + (" " if linha_atual else "") + sub
-                        if pdf.get_string_width(teste) <= larg_max:
+                        if pdf.get_string_width(teste) <= largura_texto:
                             linha_atual = teste
                         else:
                             if linha_atual:
@@ -96,7 +98,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                             linha_atual = sub
                 else:
                     teste = linha_atual + (" " if linha_atual else "") + palavra
-                    if pdf.get_string_width(teste) <= larg_max:
+                    if pdf.get_string_width(teste) <= largura_texto:
                         linha_atual = teste
                     else:
                         if linha_atual:
@@ -110,8 +112,11 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             if len(linhas) > max_linhas:
                 max_linhas = len(linhas)
 
-        altura_linha = max_linhas * ALT_LINHA
+        # Altura total da linha = número de linhas de texto * altura da linha + margens verticais
+        altura_texto = max_linhas * ALT_LINHA
+        altura_linha = altura_texto + 2 * MARGEM_INTERNA
 
+        # Verificar quebra de página
         if pdf.get_y() + altura_linha > ALTURA - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 8)
@@ -126,6 +131,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         x0 = pdf.get_x()
         y0 = pdf.get_y()
         for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
+            # Desenha retângulo com borda e fundo
             pdf.set_xy(x0 + sum(larguras[:i]), y0)
             if zebra:
                 pdf.set_fill_color(230, 230, 230)
@@ -133,15 +139,24 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.set_fill_color(255, 255, 255)
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
 
+            # Prepara texto
             eh_descricao = (i == idx_descricao)
-            altura_texto = len(linhas) * ALT_LINHA
-            offset_y = (altura_linha - altura_texto) / 2.0
-            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + offset_y)
+            largura_texto = largura - 2 * MARGEM_INTERNA
+            altura_texto_real = len(linhas) * ALT_LINHA
+            # Centralizar verticalmente dentro do espaço interno
+            espaco_vertical = altura_linha - 2 * MARGEM_INTERNA
+            offset_y = (espaco_vertical - altura_texto_real) / 2.0
+            y_texto = y0 + MARGEM_INTERNA + offset_y
+
+            # Escreve linha a linha
+            pdf.set_xy(x0 + sum(larguras[:i]) + MARGEM_INTERNA, y_texto)
             for j, linha in enumerate(linhas):
                 if j > 0:
-                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + ALT_LINHA * j)
+                    pdf.set_xy(pdf.get_x() - largura + MARGEM_INTERNA,
+                               pdf.get_y() + ALT_LINHA * j)
                 align = "L" if eh_descricao else "C"
-                pdf.cell(largura - 2, ALT_LINHA, linha, 0, 0, align)
+                pdf.cell(largura_texto, ALT_LINHA, linha, 0, 0, align)
+            # Posiciona para a próxima célula (o cursor não é afetado pela escrita)
             pdf.set_xy(x0 + sum(larguras[:i+1]), y0)
 
         pdf.set_xy(x0, y0 + altura_linha)
@@ -219,6 +234,7 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
 
+        # Limita a descrição a 100 caracteres para evitar estouro
         if 'produto-descricao' in df_export.columns:
             df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
 
@@ -470,18 +486,4 @@ def _finalizar_palete(sheet):
             "camara-vaga": st.session_state.vaga,
             "produto-marca": prod["produto-marca"],
             "produto-descricao": prod["produto-descricao"],
-            "validade": prod["validade"]
-        })
-    try:
-        salvar_registros(sheet, registros_para_gravar)
-        exibir_mensagem_centralizada(
-            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+           
