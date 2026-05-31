@@ -35,7 +35,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     LARGURA = 160
     ALTURA = 220
     MARGEM = 8
-    ALT_LINHA = 4  # altura de cada linha de texto
+    ALT_LINHA = 4
 
     pdf = FPDF('P', 'mm', (LARGURA, ALTURA))
     pdf.set_auto_page_break(True, MARGEM)
@@ -43,12 +43,10 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_right_margin(MARGEM)
     pdf.add_page()
 
-    # Título
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 8, titulo, ln=1, align="C")
     pdf.ln(3)
 
-    # Data e total
     pdf.set_font("Helvetica", "", 8)
     data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
@@ -63,7 +61,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     else:
         larguras = [28, 24, 20, 36, 36]
 
-    # Índice da coluna "produto-descricao" (assumindo ordem padrão)
     idx_descricao = colunas.index("produto-descricao") if "produto-descricao" in colunas else -1
 
     # Cabeçalho
@@ -78,7 +75,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     zebra = False
     for _, row in df.iterrows():
-        # Calcular número de linhas por coluna e guardar textos quebrados
         textos_quebrados = []
         max_linhas = 1
         for i, col in enumerate(colunas):
@@ -116,7 +112,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
         altura_linha = max_linhas * ALT_LINHA
 
-        # Quebra de página
         if pdf.get_y() + altura_linha > ALTURA - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 8)
@@ -128,36 +123,25 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             zebra = False
 
-        # Desenhar a linha
         x0 = pdf.get_x()
         y0 = pdf.get_y()
         for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
             pdf.set_xy(x0 + sum(larguras[:i]), y0)
-            # Cor de fundo
             if zebra:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Desenha retângulo com borda e fundo
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
 
-            # Alinhamento horizontal e vertical
             eh_descricao = (i == idx_descricao)
-            # Centralizar verticalmente: calcular deslocamento Y
             altura_texto = len(linhas) * ALT_LINHA
             offset_y = (altura_linha - altura_texto) / 2.0
-            # Posicionar o texto
             pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + offset_y)
             for j, linha in enumerate(linhas):
                 if j > 0:
                     pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + ALT_LINHA * j)
-                # Alinhamento horizontal
-                if eh_descricao:
-                    align = "L"
-                else:
-                    align = "C"
+                align = "L" if eh_descricao else "C"
                 pdf.cell(largura - 2, ALT_LINHA, linha, 0, 0, align)
-            # Posiciona para a próxima célula
             pdf.set_xy(x0 + sum(larguras[:i+1]), y0)
 
         pdf.set_xy(x0, y0 + altura_linha)
@@ -234,8 +218,7 @@ def renderizar_secao_consulta(df_existente):
         if 'validade' in df_export.columns:
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
-        
-        # Limita a descrição a 100 caracteres para evitar estouro
+
         if 'produto-descricao' in df_export.columns:
             df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
 
@@ -371,6 +354,8 @@ def _validar_dataframe(df):
             return False, f"Linha {idx+1}: marca é obrigatória."
         if not descricao:
             return False, f"Linha {idx+1}: descrição é obrigatória."
+        if len(descricao) > 100:
+            return False, f"Linha {idx+1}: a descrição não pode ter mais de 100 caracteres (atualmente {len(descricao)})."
     return True, ""
 
 
@@ -400,7 +385,10 @@ def renderizar_secao_produtos(sheet):
         with col1:
             marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
         with col2:
-            descricao = st.text_input("Descrição do produto")
+            descricao = st.text_input("Descrição do produto", max_chars=100,
+                                      help="Máximo de 100 caracteres.")
+            if descricao:
+                st.caption(f"{len(descricao)}/100 caracteres")
         validade = st.date_input("Validade", value=None, format="DD/MM/YYYY")
 
         if st.form_submit_button("➕ Adicionar"):
@@ -410,6 +398,8 @@ def renderizar_secao_produtos(sheet):
                 st.error("Selecione a validade.")
             elif not descricao.strip():
                 st.error("Informe a descrição.")
+            elif len(descricao) > 100:
+                st.error(f"A descrição ultrapassou 100 caracteres (atualmente {len(descricao)}).")
             else:
                 st.session_state.produtos_temp.append({
                     "produto-marca": marca,
@@ -448,7 +438,7 @@ def renderizar_secao_produtos(sheet):
             if st.button("💾 Salvar alterações", use_container_width=True):
                 ok, msg = _validar_dataframe(edited_df)
                 if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                    st.error(f"❌ {msg}")
                 else:
                     st.session_state.produtos_temp = _converter_edited_df(edited_df)
                     st.rerun()
@@ -456,7 +446,7 @@ def renderizar_secao_produtos(sheet):
             if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
                 ok, msg = _validar_dataframe(edited_df)
                 if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                    st.error(f"❌ {msg}")
                 else:
                     st.session_state.produtos_temp = _converter_edited_df(edited_df)
                     _finalizar_palete(sheet)
