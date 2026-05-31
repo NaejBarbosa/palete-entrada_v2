@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 
 def renderizar_secao_consulta(df_existente):
-    """Renderiza a seção de consulta de registros existentes com botão de download CSV compatível com Google Sheets e Excel."""
+    """Renderiza a seção de consulta de registros existentes com botão de download CSV compatível com Excel Brasil e Google Sheets."""
     st.markdown("---")
 
     col_f1, col_f2 = st.columns(2)
@@ -82,7 +82,7 @@ def renderizar_secao_consulta(df_existente):
         else:
             st.info("Nenhum registro corresponde aos filtros.")
 
-    # --- BOTÃO DE DOWNLOAD CSV (compatível com Google Sheets e Excel) ---
+    # --- BOTÃO DE DOWNLOAD CSV (com separador ponto e vírgula) ---
     if not df_filtrado.empty:
         import csv
         from io import StringIO
@@ -97,19 +97,27 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
 
-        # Converte para CSV no padrão RFC 4180 (separador vírgula, aspas quando necessário)
+        # Converte para CSV com separador ';' e aspas (compatível com Excel Brasil)
         output = StringIO()
-        df_export.to_csv(output, index=False, sep=',', encoding='utf-8', quoting=csv.QUOTE_MINIMAL, quotechar='"')
-        csv_data = output.getvalue().encode('utf-8')
+        df_export.to_csv(
+            output,
+            index=False,
+            sep=';',
+            encoding='utf-8-sig',      # BOM para reconhecimento de acentos no Excel
+            quoting=csv.QUOTE_ALL,      # Coloca aspas em TODOS os campos (mais seguro)
+            quotechar='"'
+        )
+        csv_data = output.getvalue().encode('utf-8-sig')
 
         st.download_button(
-            label="📥 Baixar relatório (CSV)",
+            label="📥 Baixar relatório (CSV para Excel/Google)",
             data=csv_data,
             file_name="relatorio_paletes.csv",
             mime="text/csv",
             use_container_width=True
         )
-        st.caption("✅ Formato compatível com Google Sheets e Excel (importe como CSV com separador vírgula)")
+        st.caption("✅ Formato: separador **ponto e vírgula (;)** | Aspas em todos os campos | UTF-8 com BOM")
+        st.caption("📌 **No Google Sheets**: Ao importar, escolha 'Separador personalizado' e digite **;**")
 
     st.markdown("---")
 
