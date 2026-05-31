@@ -17,25 +17,44 @@ from utils import exibir_mensagem_centralizada, force_reset
 # Configuração da página
 # ------------------------------
 st.set_page_config(page_title="Registro de Paletes", layout="centered")
-st.title("❄️Perecíveis | 410")
+
+# Título principal modificado
+st.title("❄️ Perecíveis | 410")
+
+# Descrição com fonte personalizada (tamanho = 1rem)
+st.markdown(
+    '<p class="descricao-app">Controle de paletes das câmaras frias/congeladas da loja 410 do Fort Atacadista.</p>',
+    unsafe_allow_html=True
+)
 
 # ------------------------------
-# CSS mínimo (apenas aparência, sem scroll)
+# CSS mínimo (aparência, centralização, radio)
 # ------------------------------
 st.markdown("""
 <style>
     /* Centraliza e ajusta proporção do título principal (h1) */
     h1 {
         text-align: center;
-        font-size: 2.8rem;   /* Altere o tamanho conforme desejar */
-        margin-bottom: 0.2rem;
+        font-size: 2.8rem;
+        margin-bottom: 0.5rem;
     }
     /* Centraliza e ajusta proporção do subtítulo (h2) */
     h2 {
         text-align: center;
-        font-size: 0.8rem;      /* Altere o tamanho conforme desejar */
+        font-size: 1.5rem;
         margin-top: 0;
-        color: #2c3e50;       /* Cor opcional para o subtítulo */
+        color: #2c3e50;
+    }
+    /* Estilo da descrição (mesmo tamanho do texto do checkbox) */
+    .descricao-app {
+        text-align: center;
+        font-size: 1rem;
+        margin-bottom: 1.2rem;
+        color: #555;
+    }
+    /* Centraliza os botões de rádio na horizontal */
+    div[data-testid="stHorizontalRadio"] {
+        justify-content: center;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -54,7 +73,7 @@ if 'bloqueado' not in st.session_state:
 if 'exibir_gerenciamento' not in st.session_state:
     st.session_state.exibir_gerenciamento = False
 if 'check_consulta' not in st.session_state:
-    st.session_state.check_consulta = False
+    st.session_state.check_consulta = False   # mantido por compatibilidade, mas não é mais usado
 
 # ------------------------------
 # Conexão e carregamento de dados
@@ -63,8 +82,23 @@ sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
 # ------------------------------
-# Renderização das seções
+# Botões de seleção (Cadastrar / Consultar)
 # ------------------------------
-consulta_ativa = renderizar_secao_consulta(df_existente)
-renderizar_secao_cadastro(sheet, df_existente)
-renderizar_secao_produtos(sheet)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    modo = st.radio(
+        "Selecione o modo",
+        options=["Cadastrar", "Consultar"],
+        index=0,
+        horizontal=True,
+        key="modo_operacao"
+    )
+
+# ------------------------------
+# Renderização condicional
+# ------------------------------
+if modo == "Consultar":
+    renderizar_secao_consulta(df_existente)
+else:
+    renderizar_secao_cadastro(sheet, df_existente)
+    renderizar_secao_produtos(sheet)
