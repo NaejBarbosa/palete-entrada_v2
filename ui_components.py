@@ -86,17 +86,17 @@ def renderizar_secao_consulta(df_existente):
 
 def renderizar_secao_cadastro(sheet, df_existente):
     """Renderiza a seção de cadastro de palete (câmara/vaga)."""
-    # Título "Cadastro de Palete" foi removido conforme solicitado
-    # st.markdown("## 📦 Cadastro de Palete")  <- removido
+    # Título "Cadastro de Palete" removido conforme solicitado
 
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
 
-    reset_token = st.query_params.get("reset_token", 0)
+    # Compatibilidade com versões antigas e novas do Streamlit
     try:
-        reset_token = int(reset_token)
-    except:
-        reset_token = 0
+        reset_token = int(st.query_params.get("reset_token", 0))
+    except AttributeError:
+        params = st.experimental_get_query_params()
+        reset_token = int(params.get("reset_token", [0])[0])
 
     camara_selecionada = st.selectbox(
         "Câmara",
