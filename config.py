@@ -49,7 +49,7 @@ MARCA_OPCOES = [
 # ID da Planilha Google
 SHEET_ID = "1HoN-VLyO5y9wJ4NKdpz42-BljRzT4VeJVY-Wio4CO6g"
 
-# Colunas da aba "Inclusoes"
+# Colunas da aba "inclusoes" (com i minúsculo)
 COLUNAS_INCLUSOES = [
     "registro",
     "camara",
