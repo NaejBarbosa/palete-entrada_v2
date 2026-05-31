@@ -18,14 +18,12 @@ def quebrar_palavra_longa(palavra, largura_max, pdf):
     pedacos = []
     restante = palavra
     while restante:
-        # tenta o maior pedaço possível
         for i in range(len(restante), 0, -1):
             if pdf.get_string_width(restante[:i]) <= largura_max:
                 pedacos.append(restante[:i])
                 restante = restante[i:]
                 break
         else:
-            # se nada couber, pega o primeiro caractere
             pedacos.append(restante[0])
             restante = restante[1:]
     return pedacos
@@ -39,24 +37,23 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     ALTURA_PAGINA_MM = 220
     MARGEM = 8
     ALTURA_LINHA_TEXTO = 4
-    MARGEM_INTERNA = 1.5
 
-    pdf = FPDF(orientation='P', unit='mm', format=(LARGURA_PAGINA_MM, ALTURA_PAGINA_MM))
-    pdf.set_auto_page_break(auto=True, margin=MARGEM)
+    pdf = FPDF('P', 'mm', (LARGURA_PAGINA_MM, ALTURA_PAGINA_MM))
+    pdf.set_auto_page_break(True, MARGEM)
     pdf.set_left_margin(MARGEM)
     pdf.set_right_margin(MARGEM)
     pdf.add_page()
 
     # Título
     pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 8, titulo, ln=True, align="C")
+    pdf.cell(0, 8, titulo, ln=1, align="C")
     pdf.ln(3)
 
     # Data e total
     pdf.set_font("Helvetica", "", 8)
     data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    pdf.cell(0, 5, "Gerado: " + data_geracao, ln=True, align="R")
-    pdf.cell(0, 5, "Total: " + str(len(df)) + " registros", ln=True, align="R")
+    pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
+    pdf.cell(0, 5, f"Total: {len(df)} registros", ln=1, align="R")
     pdf.ln(4)
 
     colunas = list(df.columns)
@@ -72,28 +69,73 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
     for i, col in enumerate(colunas):
-        pdf.cell(larguras[i], 6, col, border=1, align="C", fill=True)
+        pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
     pdf.ln()
     pdf.set_text_color(0, 0, 0)
 
-    # Dados
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for _, row in df.iterrows():
-        textos_quebrados = []
-        max_linhas = 1
-
+        # --- Pré‑calcular a altura necessária para esta linha ---
+        linhas_por_celula = []
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            largura_max = larguras[i] - 2 * MARGEM_INTERNA
-
+            largura_max = larguras[i] - 2
+            palavras = valor.split()
             linhas = []
             linha_atual = ""
-            palavras = valor.split()
             for palavra in palavras:
                 if pdf.get_string_width(palavra) > largura_max:
-                    subpalavras = quebrar_palavra_longa(palavra, largura_max, pdf)
-                    for sub in subpalavras:
+                    subs = quebrar_palavra_longa(palavra, largura_max, pdf)
+                    for sub in subs:
+                        teste = linha_atual + (" " if linha_atual else "") + sub
+                        if pdf.get_string_width(teste) <= largura_max:
+                            linha_atual = teste
+                        else:
+                            if linha_atual:
+                                linhas.append(linha_atual)
+                            linha_atual = sub
+                else:
+                    teste = linha_atual + (" " if linha_atual else "") + palavra
+                    if pdf.get_string_width(teste) <= largura_max:
+                        linha_atual = teste
+                    else:
+                        if linha_atual:
+                            linhas.append(linha_atual)
+                        linha_atual = palavra
+            if linha_atual:
+                linhas.append(linha_atual)
+            if not linhas:
+                linhas = [""]
+            linhas_por_celula.append(len(linhas))
+        max_linhas = max(linhas_por_celula)
+        altura_linha = max_linhas * ALTURA_LINHA_TEXTO
+
+        # Quebra de página
+        if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_fill_color(80, 80, 80)
+            pdf.set_text_color(255, 255, 255)
+            for i, col in enumerate(colunas):
+                pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
+            pdf.ln()
+            pdf.set_text_color(0, 0, 0)
+            fill = False
+
+        # --- Desenhar a linha célula por célula ---
+        x_inicial = pdf.get_x()
+        y_inicial = pdf.get_y()
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            largura_max = larguras[i] - 2
+            palavras = valor.split()
+            linhas = []
+            linha_atual = ""
+            for palavra in palavras:
+                if pdf.get_string_width(palavra) > largura_max:
+                    subs = quebrar_palavra_longa(palavra, largura_max, pdf)
+                    for sub in subs:
                         teste = linha_atual + (" " if linha_atual else "") + sub
                         if pdf.get_string_width(teste) <= largura_max:
                             linha_atual = teste
@@ -114,42 +156,26 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             if not linhas:
                 linhas = [""]
 
-            textos_quebrados.append(linhas)
-            if len(linhas) > max_linhas:
-                max_linhas = len(linhas)
-
-        altura_linha = max_linhas * ALTURA_LINHA_TEXTO
-
-        # Quebra de página
-        if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
-            pdf.add_page()
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_fill_color(80, 80, 80)
-            pdf.set_text_color(255, 255, 255)
-            for i, col in enumerate(colunas):
-                pdf.cell(larguras[i], 6, col, border=1, align="C", fill=True)
-            pdf.ln()
-            pdf.set_text_color(0, 0, 0)
-            fill = False
-
-        x_inicial = pdf.get_x()
-        y_inicial = pdf.get_y()
-        for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
+            # Posiciona a célula
             pdf.set_xy(x_inicial + sum(larguras[:i]), y_inicial)
+            # Cor de fundo
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
-            pdf.set_xy(pdf.get_x() + MARGEM_INTERNA, pdf.get_y() + 1)
+            # Desenha retângulo com borda e fundo
+            pdf.rect(pdf.get_x(), pdf.get_y(), larguras[i], altura_linha, 'DF')
+            # Escreve o texto linha a linha
+            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)
             for j, linha in enumerate(linhas):
                 if j > 0:
-                    pdf.set_xy(pdf.get_x() - largura + MARGEM_INTERNA,
+                    pdf.set_xy(pdf.get_x() - larguras[i] + 1,
                                pdf.get_y() + ALTURA_LINHA_TEXTO * j)
-                pdf.cell(largura - 2 * MARGEM_INTERNA, ALTURA_LINHA_TEXTO,
-                         linha, ln=0, align="L")
+                pdf.cell(larguras[i] - 2, ALTURA_LINHA_TEXTO, linha, 0, 0, "L")
+            # Posiciona para a próxima célula
             pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
 
+        # Avança para a próxima linha
         pdf.set_xy(x_inicial, y_inicial + altura_linha)
         fill = not fill
 
@@ -159,7 +185,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
 
 # --------------------------------------------------------------
-# Componentes da UI (mantidos idênticos)
+# Componentes da UI (inalterados)
 # --------------------------------------------------------------
 def renderizar_secao_consulta(df_existente):
     st.markdown("---")
@@ -465,22 +491,4 @@ def _finalizar_palete(sheet):
     registros_para_gravar = []
     for prod in st.session_state.produtos_temp:
         registros_para_gravar.append({
-            "camara": st.session_state.camara,
-            "camara-vaga": st.session_state.vaga,
-            "produto-marca": prod["produto-marca"],
-            "produto-descricao": prod["produto-descricao"],
-            "validade": prod["validade"]
-        })
-    try:
-        salvar_registros(sheet, registros_para_gravar)
-        exibir_mensagem_centralizada(
-            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+            "camara": st.sessio
