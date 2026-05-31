@@ -13,12 +13,12 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF com layout padronizado (mesma altura por linha)
+# Função para gerar PDF com quebra de linha correta (sem sobreposição)
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
-    Gera PDF com layout alinhado: todas as células da mesma linha terão a mesma altura,
-    calculada dinamicamente com base no conteúdo mais alto.
+    Gera PDF com quebra de linha automática e sem sobreposição de dados.
+    Cada célula tem largura fixa, e o texto é quebrado em múltiplas linhas.
     """
     if df.empty:
         return None
@@ -67,23 +67,32 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for idx, row in df.iterrows():
-        # --- Calcular a altura necessária para esta linha (maior número de linhas entre as células) ---
-        max_linhas = 1
+        # --- Para cada célula, calcular quantas linhas serão necessárias ---
+        linhas_por_celula = []
+        texto_por_celula = []  # guarda o texto já quebrado em lista de strings
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
+            largura_max = larguras[i] - 1.5  # margem interna
+            # Função para quebrar o texto em linhas
             palavras = valor.split()
-            linhas = 1
+            linhas = []
             linha_atual = ""
-            largura_max = larguras[i] - 1.5
             for palavra in palavras:
                 teste = linha_atual + (" " if linha_atual else "") + palavra
                 if pdf.get_string_width(teste) <= largura_max:
                     linha_atual = teste
                 else:
-                    linhas += 1
+                    if linha_atual:
+                        linhas.append(linha_atual)
                     linha_atual = palavra
-            if linhas > max_linhas:
-                max_linhas = linhas
+            if linha_atual:
+                linhas.append(linha_atual)
+            if not linhas:  # texto vazio
+                linhas = [""]
+            linhas_por_celula.append(len(linhas))
+            texto_por_celula.append(linhas)
+
+        max_linhas = max(linhas_por_celula) if linhas_por_celula else 1
         altura_linha = max_linhas * 4  # 4mm por linha
 
         # Verificar quebra de página
@@ -98,23 +107,34 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # --- Desenhar todas as células da linha com a MESMA altura ---
+        # --- Desenhar a linha célula por célula, com altura fixa ---
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
-        pdf.set_font("Helvetica", "", 7)
 
-        for i, col in enumerate(colunas):
-            valor = str(row[col]) if pd.notna(row[col]) else ""
+        for i, (largura, linhas_texto) in enumerate(zip(larguras, texto_por_celula)):
             pdf.set_y(y_inicial)
             pdf.set_x(x_inicial + sum(larguras[:i]))
+            # Preencher fundo se necessário
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Força a altura da célula para `altura_linha` (garante alinhamento)
-            pdf.multi_cell(larguras[i], altura_linha, valor, border=1, align="L", fill=fill)
+            # Desenhar a célula com multi_cell usando altura exata
+            # Para garantir que todas as células da linha tenham a mesma altura,
+            # usamos o multi_cell com altura fixa = altura_linha e o texto já quebrado.
+            # No entanto, o multi_cell não aceita texto pré-quebrado; precisamos escrever linha a linha.
+            # Vamos usar uma abordagem manual: desenhar retângulo e depois escrever linha por linha.
+            pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF' if fill else None)
+            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)
+            pdf.set_font("Helvetica", "", 7)
+            for j, linha in enumerate(linhas_texto):
+                if j > 0:
+                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + 4 * j)
+                pdf.cell(largura - 2, 4, linha, ln=0, align="L")
+            # Restaurar posição X e Y para a próxima célula (o multi_cell faria automaticamente, mas estamos gerenciando manualmente)
+            pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
 
-        # Avança para a próxima linha
+        # Após todas as células, posiciona o cursor no início da próxima linha
         pdf.set_y(y_inicial + altura_linha)
         pdf.set_x(x_inicial)
         fill = not fill
@@ -124,10 +144,9 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     return buffer.getvalue()
 
 # ---------------------------
-# Componentes da UI
+# Componentes da UI (mantidos inalterados)
 # ---------------------------
 def renderizar_secao_consulta(df_existente):
-    """Renderiza a seção de consulta com botões para CSV e PDF."""
     st.markdown("---")
 
     col_f1, col_f2 = st.columns(2)
@@ -226,7 +245,6 @@ def renderizar_secao_consulta(df_existente):
     st.markdown("---")
 
 def renderizar_secao_cadastro(sheet, df_existente):
-    """Renderiza a seção de cadastro de palete (câmara/vaga)."""
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
 
@@ -270,7 +288,6 @@ def renderizar_secao_cadastro(sheet, df_existente):
         _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada)
 
 def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada):
-    """Renderiza o expander de gerenciamento de vaga ocupada."""
     with st.expander("🔧 Gerenciar vaga ocupada", expanded=True):
         df_filtrado = df_existente[
             (df_existente['camara'] == camara_selecionada) &
@@ -315,7 +332,6 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
         st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
 
 def _validar_dataframe(df):
-    """Valida campos obrigatórios."""
     for idx, row in df.iterrows():
         marca = str(row.get("produto-marca", "")).strip()
         descricao = str(row.get("produto-descricao", "")).strip()
@@ -329,7 +345,6 @@ def _validar_dataframe(df):
     return True, ""
 
 def _converter_edited_df(edited_df):
-    """Converte DataFrame editado para lista de dicionários."""
     produtos = edited_df.to_dict("records")
     for p in produtos:
         if isinstance(p.get("validade"), pd.Timestamp):
@@ -341,7 +356,6 @@ def _converter_edited_df(edited_df):
     return produtos
 
 def renderizar_secao_produtos(sheet):
-    """Renderiza a seção de adição/edição/exclusão de produtos ao palete."""
     if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
         if st.session_state.bloqueado and not st.session_state.exibir_gerenciamento:
             st.info("💡 Altere a câmara ou vaga para uma combinação livre.")
