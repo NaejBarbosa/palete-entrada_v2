@@ -13,12 +13,12 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF com quebra de linha correta (sem sobreposição)
+# Função para gerar PDF com quebra de linha e sem sobreposição
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
-    Gera PDF com quebra de linha automática e sem sobreposição de dados.
-    Cada célula tem largura fixa, e o texto é quebrado em múltiplas linhas.
+    Gera PDF com quebra de linha automática e células alinhadas.
+    Cada linha de dados terá altura suficiente para acomodar o conteúdo mais alto.
     """
     if df.empty:
         return None
@@ -67,35 +67,26 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for idx, row in df.iterrows():
-        # --- Para cada célula, calcular quantas linhas serão necessárias ---
-        linhas_por_celula = []
-        texto_por_celula = []  # guarda o texto já quebrado em lista de strings
+        # --- Pré-calcular o número de linhas necessárias para cada coluna ---
+        linhas_por_coluna = []
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            largura_max = larguras[i] - 1.5  # margem interna
-            # Função para quebrar o texto em linhas
+            largura_max = larguras[i] - 2  # margem interna
             palavras = valor.split()
-            linhas = []
+            linhas = 1
             linha_atual = ""
             for palavra in palavras:
                 teste = linha_atual + (" " if linha_atual else "") + palavra
                 if pdf.get_string_width(teste) <= largura_max:
                     linha_atual = teste
                 else:
-                    if linha_atual:
-                        linhas.append(linha_atual)
+                    linhas += 1
                     linha_atual = palavra
-            if linha_atual:
-                linhas.append(linha_atual)
-            if not linhas:  # texto vazio
-                linhas = [""]
-            linhas_por_celula.append(len(linhas))
-            texto_por_celula.append(linhas)
-
-        max_linhas = max(linhas_por_celula) if linhas_por_celula else 1
+            linhas_por_coluna.append(linhas)
+        max_linhas = max(linhas_por_coluna)
         altura_linha = max_linhas * 4  # 4mm por linha
 
-        # Verificar quebra de página
+        # Quebra de página
         if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 8)
@@ -107,36 +98,20 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # --- Desenhar a linha célula por célula, com altura fixa ---
+        # --- Desenhar a linha célula por célula com altura fixa ---
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
-
-        for i, (largura, linhas_texto) in enumerate(zip(larguras, texto_por_celula)):
-            pdf.set_y(y_inicial)
-            pdf.set_x(x_inicial + sum(larguras[:i]))
-            # Preencher fundo se necessário
+        for i, col in enumerate(colunas):
+            valor = str(row[col]) if pd.notna(row[col]) else ""
+            pdf.set_xy(x_inicial + sum(larguras[:i]), y_inicial)
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Desenhar a célula com multi_cell usando altura exata
-            # Para garantir que todas as células da linha tenham a mesma altura,
-            # usamos o multi_cell com altura fixa = altura_linha e o texto já quebrado.
-            # No entanto, o multi_cell não aceita texto pré-quebrado; precisamos escrever linha a linha.
-            # Vamos usar uma abordagem manual: desenhar retângulo e depois escrever linha por linha.
-            pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF' if fill else None)
-            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)
-            pdf.set_font("Helvetica", "", 7)
-            for j, linha in enumerate(linhas_texto):
-                if j > 0:
-                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + 4 * j)
-                pdf.cell(largura - 2, 4, linha, ln=0, align="L")
-            # Restaurar posição X e Y para a próxima célula (o multi_cell faria automaticamente, mas estamos gerenciando manualmente)
-            pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
-
-        # Após todas as células, posiciona o cursor no início da próxima linha
-        pdf.set_y(y_inicial + altura_linha)
-        pdf.set_x(x_inicial)
+            # Usa multi_cell com altura fixa (altura_linha) e texto quebrado automaticamente
+            pdf.multi_cell(larguras[i], 4, valor, border=1, align="L", fill=fill)
+        # Avança para a próxima linha
+        pdf.set_xy(x_inicial, y_inicial + altura_linha)
         fill = not fill
 
     buffer = io.BytesIO()
@@ -144,7 +119,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     return buffer.getvalue()
 
 # ---------------------------
-# Componentes da UI (mantidos inalterados)
+# Componentes da UI
 # ---------------------------
 def renderizar_secao_consulta(df_existente):
     st.markdown("---")
