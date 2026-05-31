@@ -82,20 +82,10 @@ def renderizar_secao_consulta(df_existente):
         if 'produto-descricao' in df_export.columns:
             df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
 
+        # Botões: PDF primeiro, CSV segundo
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
-            output_csv = io.StringIO()
-            df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
-            csv_data = output_csv.getvalue().encode('utf-8-sig')
-            st.download_button(
-                label="Baixar CSV",
-                data=csv_data,
-                file_name="relatorio_paletes.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_botao2:
-            # Download direto do PDF, sem botão intermediário
+            # Download direto do PDF
             def gerar_pdf_bytes():
                 pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatorio de Paletes - Pereciveis 410")
                 if pdf_bytes is None:
@@ -104,12 +94,23 @@ def renderizar_secao_consulta(df_existente):
                 return pdf_bytes
 
             st.download_button(
-                label="Baixar PDF",
+                label="📄 Baixar PDF",
                 data=gerar_pdf_bytes(),
                 file_name="relatorio_paletes.pdf",
                 mime="application/pdf",
                 use_container_width=True,
                 key="pdf_download_button"
+            )
+        with col_botao2:
+            output_csv = io.StringIO()
+            df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
+            csv_data = output_csv.getvalue().encode('utf-8-sig')
+            st.download_button(
+                label="📊 Baixar CSV",
+                data=csv_data,
+                file_name="relatorio_paletes.csv",
+                mime="text/csv",
+                use_container_width=True
             )
     else:
         st.info("Nenhum dado para exportar.")
