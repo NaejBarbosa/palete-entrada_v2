@@ -13,12 +13,12 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF com quebra de linha e sem sobreposição
+# Função para gerar PDF com altura de linha uniforme
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
-    Gera PDF com quebra de linha automática e células alinhadas.
-    Cada linha de dados terá altura suficiente para acomodar o conteúdo mais alto.
+    Gera PDF com altura uniforme por linha. Se uma célula quebra em várias linhas,
+    toda a linha terá a mesma altura, evitando desalinhamento.
     """
     if df.empty:
         return None
@@ -67,23 +67,28 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for idx, row in df.iterrows():
-        # --- Pré-calcular o número de linhas necessárias para cada coluna ---
-        linhas_por_coluna = []
+        # --- Pré-calcular linhas quebradas e altura máxima ---
+        linhas_por_celula = []
+        textos_quebrados = []  # lista de listas de strings (cada célula)
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             largura_max = larguras[i] - 2  # margem interna
             palavras = valor.split()
-            linhas = 1
+            linhas = []
             linha_atual = ""
             for palavra in palavras:
                 teste = linha_atual + (" " if linha_atual else "") + palavra
                 if pdf.get_string_width(teste) <= largura_max:
                     linha_atual = teste
                 else:
-                    linhas += 1
+                    if linha_atual:
+                        linhas.append(linha_atual)
                     linha_atual = palavra
-            linhas_por_coluna.append(linhas)
-        max_linhas = max(linhas_por_coluna)
+            if linha_atual or not palavras:
+                linhas.append(linha_atual if linha_atual else "")
+            textos_quebrados.append(linhas)
+            linhas_por_celula.append(len(linhas))
+        max_linhas = max(linhas_por_celula)
         altura_linha = max_linhas * 4  # 4mm por linha
 
         # Quebra de página
@@ -98,18 +103,28 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # --- Desenhar a linha célula por célula com altura fixa ---
+        # --- Desenhar a linha com altura uniforme ---
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
-        for i, col in enumerate(colunas):
-            valor = str(row[col]) if pd.notna(row[col]) else ""
+        pdf.set_font("Helvetica", "", 7)
+        for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
+            # Preencher fundo e borda
             pdf.set_xy(x_inicial + sum(larguras[:i]), y_inicial)
+            # Cor de fundo
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Usa multi_cell com altura fixa (altura_linha) e texto quebrado automaticamente
-            pdf.multi_cell(larguras[i], 4, valor, border=1, align="L", fill=fill)
+            # Desenha retângulo de fundo (borda)
+            pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
+            # Escrever texto linha a linha
+            pdf.set_xy(pdf.get_x() + 1, pdf.get_y() + 1)  # margem interna
+            for j, linha in enumerate(linhas):
+                if j > 0:
+                    pdf.set_xy(pdf.get_x() - largura + 1, pdf.get_y() + 4 * j)
+                pdf.cell(largura - 2, 4, linha, ln=0, align="L")
+            # Restaura posição para a próxima célula
+            pdf.set_xy(x_inicial + sum(larguras[:i+1]), y_inicial)
         # Avança para a próxima linha
         pdf.set_xy(x_inicial, y_inicial + altura_linha)
         fill = not fill
@@ -119,7 +134,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     return buffer.getvalue()
 
 # ---------------------------
-# Componentes da UI
+# Componentes da UI (sem alterações)
 # ---------------------------
 def renderizar_secao_consulta(df_existente):
     st.markdown("---")
