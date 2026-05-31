@@ -55,7 +55,8 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
     colunas = list(df.columns)
     if len(colunas) == 6:
-        larguras = [26, 20, 18, 26, 38, 16]
+        # Ajuste: registro 26, câmara 18, vaga 16, marca 26, descrição 38, validade 18 (soma 142)
+        larguras = [26, 18, 16, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
     else:
@@ -74,6 +75,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.ln()
     pdf.set_text_color(0, 0, 0)
 
+    # Fonte normal para os dados
     pdf.set_font("Helvetica", "", 7)
     zebra = False
     for _, row in df.iterrows():
@@ -116,8 +118,10 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         altura_texto = max_linhas * ALTURA_LINHA_TEXTO
         altura_linha = altura_texto + 2 * MARGEM_INTERNA
 
+        # Quebra de página
         if pdf.get_y() + altura_linha > ALTURA_PAGINA - MARGEM:
             pdf.add_page()
+            # Redesenha cabeçalho (com negrito)
             pdf.set_font("Helvetica", "B", 8)
             pdf.set_fill_color(80, 80, 80)
             pdf.set_text_color(255, 255, 255)
@@ -125,6 +129,8 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
             pdf.ln()
             pdf.set_text_color(0, 0, 0)
+            # Volta a fonte normal para os dados
+            pdf.set_font("Helvetica", "", 7)
             zebra = False
 
         x0 = pdf.get_x()
@@ -487,9 +493,4 @@ def _finalizar_palete(sheet):
         )
         time.sleep(3)
         st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        st.session
