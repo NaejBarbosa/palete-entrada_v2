@@ -1,4 +1,4 @@
-# app.py - Versão corrigida para mobile
+# app.py - Com botões HTML lado a lado (funciona no mobile)
 import streamlit as st
 import time
 
@@ -19,43 +19,57 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# CSS FORÇANDO BOTÕES LADO A LADO NO MOBILE
+# CSS para o container flex dos botões e estilo
 st.markdown("""
 <style>
     h1 { text-align: center; font-size: 2.8rem; margin-bottom: 0.5rem; }
     h2 { text-align: center; font-size: 1.5rem; margin-top: 0; color: #2c3e50; }
     .descricao-app { text-align: center; font-size: 1rem; margin-bottom: 1.2rem; color: #555; }
-
-    /* Força os botões a ficarem lado a lado em qualquer tamanho de tela */
-    div[data-testid="column"]:has(button) {
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: center !important;
-        gap: 10px !important;
-        flex-wrap: nowrap !important;
-    }
     
-    /* Cada botão ocupa largura automática, não 100% */
-    .stButton button {
-        width: auto !important;
-        white-space: nowrap !important;
-        min-width: 120px !important;
+    /* Container flexível para os botões */
+    .btn-flex-container {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        flex-wrap: nowrap;
+        margin: 20px 0;
     }
-    
-    /* No celular, garante que as colunas internas não quebrem */
+    /* Estilo dos botões customizados */
+    .custom-btn {
+        background-color: #f0f2f6;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        min-width: 120px;
+        text-align: center;
+    }
+    .custom-btn-primary {
+        background-color: #ff4b4b;
+        border-color: #ff4b4b;
+        color: white;
+    }
+    .custom-btn-secondary {
+        background-color: #f0f2f6;
+        border-color: #d1d5db;
+        color: #31333f;
+    }
+    .custom-btn:hover {
+        transform: scale(1.02);
+        opacity: 0.9;
+    }
     @media (max-width: 640px) {
-        div[data-testid="column"]:has(button) {
-            flex-direction: row !important;
-        }
-        .stButton button {
-            font-size: 14px !important;
-            padding: 0.5rem 1rem !important;
-        }
+        .btn-flex-container { gap: 10px; }
+        .custom-btn { padding: 0.4rem 1rem; font-size: 0.9rem; min-width: 100px; }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sessão
+# Inicialização da sessão
 if 'produtos_temp' not in st.session_state:
     st.session_state.produtos_temp = []
 if 'camara' not in st.session_state:
@@ -67,32 +81,45 @@ if 'bloqueado' not in st.session_state:
 if 'exibir_gerenciamento' not in st.session_state:
     st.session_state.exibir_gerenciamento = False
 if 'modo' not in st.session_state:
-    st.session_state.modo = "Cadastrar"
+    # Verificar se há parâmetro na URL (para os botões HTML)
+    modo_param = st.query_params.get("modo", "Cadastrar")
+    st.session_state.modo = modo_param if modo_param in ["Cadastrar", "Consultar"] else "Cadastrar"
 if 'reset_counter' not in st.session_state:
     st.session_state.reset_counter = 0
 
+# Conexão e dados
 sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
-# Botões centralizados e lado a lado (mesma estrutura, mas CSS força)
-col_esq, col_centro, col_dir = st.columns([1, 2, 1])
-with col_centro:
-    btn1, btn2 = st.columns(2)
-    with btn1:
-        if st.button("📝 Cadastrar", 
-                     key="cadastrar_btn",
-                     type="primary" if st.session_state.modo == "Cadastrar" else "secondary"):
-            st.session_state.modo = "Cadastrar"
-            st.rerun()
-    with btn2:
-        if st.button("🔍 Consultar", 
-                     key="consultar_btn",
-                     type="primary" if st.session_state.modo == "Consultar" else "secondary"):
-            st.session_state.modo = "Consultar"
-            st.rerun()
+# ------------------------------
+# Renderização dos botões HTML customizados
+# ------------------------------
+# Determina qual botão deve estar ativo (primary)
+btn_cadastrar_class = "custom-btn custom-btn-primary" if st.session_state.modo == "Cadastrar" else "custom-btn custom-btn-secondary"
+btn_consultar_class = "custom-btn custom-btn-primary" if st.session_state.modo == "Consultar" else "custom-btn custom-btn-secondary"
 
+# Cria os botões em HTML, com JavaScript que atualiza a URL e recarrega
+botao_html = f"""
+<div class="btn-flex-container">
+    <button class="{btn_cadastrar_class}" onclick="setModo('Cadastrar')">📝 Cadastrar</button>
+    <button class="{btn_consultar_class}" onclick="setModo('Consultar')">🔍 Consultar</button>
+</div>
+<script>
+    function setModo(modo) {{
+        const url = new URL(window.location.href);
+        url.searchParams.set('modo', modo);
+        window.location.href = url.toString();
+    }}
+</script>
+"""
+
+st.markdown(botao_html, unsafe_allow_html=True)
+
+# ------------------------------
+# Renderização condicional conforme o modo
+# ------------------------------
 if st.session_state.modo == "Consultar":
     renderizar_secao_consulta(df_existente)
-else:
+else:   # Cadastrar
     renderizar_secao_cadastro(sheet, df_existente)
     renderizar_secao_produtos(sheet)
