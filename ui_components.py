@@ -86,7 +86,8 @@ def renderizar_secao_consulta(df_existente):
 
 def renderizar_secao_cadastro(sheet, df_existente):
     """Renderiza a seção de cadastro de palete (câmara/vaga)."""
-    st.markdown("## 📦 Cadastro de Palete")
+    # Título "Cadastro de Palete" foi removido conforme solicitado
+    # st.markdown("## 📦 Cadastro de Palete")  <- removido
 
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
@@ -188,12 +189,10 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
 
 def _validar_dataframe(df):
     """Retorna (True, mensagem_erro) se houver campos vazios ou inválidos."""
-    # Verifica cada linha
     for idx, row in df.iterrows():
         marca = str(row.get("produto-marca", "")).strip()
         descricao = str(row.get("produto-descricao", "")).strip()
         validade = row.get("validade")
-        # Verifica se validade é NaT ou None
         if pd.isna(validade) or validade == "":
             return False, f"Linha {idx+1}: data de validade é obrigatória."
         if not marca:
@@ -210,7 +209,6 @@ def _converter_edited_df(edited_df):
             p["validade"] = p["validade"].strftime("%d/%m/%Y")
         elif pd.isna(p.get("validade")):
             p["validade"] = ""
-        # Garante strings
         p["produto-marca"] = str(p.get("produto-marca", "")).strip()
         p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
     return produtos
@@ -224,9 +222,7 @@ def renderizar_secao_produtos(sheet):
 
     st.subheader("📋 Produtos no Palete")
 
-    # ------------------------------------------------------------
-    # 1. Formulário de adição (sempre no topo)
-    # ------------------------------------------------------------
+    # Formulário de adição
     st.markdown("➕ **Novo produto**")
     with st.form(key="produto_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -251,14 +247,10 @@ def renderizar_secao_produtos(sheet):
                 })
                 st.rerun()
 
-    # ------------------------------------------------------------
-    # 2. Tabela editável de produtos
-    # ------------------------------------------------------------
+    # Tabela editável
     if st.session_state.produtos_temp:
         df = pd.DataFrame(st.session_state.produtos_temp)
         df = df[["produto-marca", "produto-descricao", "validade"]]
-
-        # Converte strings de data para datetime
         df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
 
         column_config = {
@@ -285,11 +277,9 @@ def renderizar_secao_produtos(sheet):
             key="produtos_editor"
         )
 
-        # Botões de ação
         colA, colB, colC = st.columns(3)
         with colA:
             if st.button("💾 Salvar alterações", use_container_width=True):
-                # Validar
                 ok, msg = _validar_dataframe(edited_df)
                 if not ok:
                     st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
@@ -315,9 +305,7 @@ def renderizar_secao_produtos(sheet):
         st.info("Nenhum produto adicionado ainda.")
 
 def _finalizar_palete(sheet):
-    """Finaliza o cadastro do palete e envia para a planilha."""
     from data_access import salvar_registros
-
     registros_para_gravar = []
     for prod in st.session_state.produtos_temp:
         registros_para_gravar.append({
@@ -327,7 +315,6 @@ def _finalizar_palete(sheet):
             "produto-descricao": prod["produto-descricao"],
             "validade": prod["validade"]
         })
-
     try:
         salvar_registros(sheet, registros_para_gravar)
         exibir_mensagem_centralizada(
