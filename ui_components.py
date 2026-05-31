@@ -27,7 +27,7 @@ def quebrar_palavra(palavra, largura_max, pdf):
     return pedacos
 
 
-def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
+def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     if df.empty:
         return None
 
@@ -55,7 +55,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
 
     colunas = list(df.columns)
     if len(colunas) == 6:
-        # Ajuste: registro 26, câmara 18, vaga 16, marca 26, descrição 38, validade 18 (soma 142)
         larguras = [26, 18, 16, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
@@ -66,7 +65,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     if "produto-descricao" in colunas:
         idx_descricao = colunas.index("produto-descricao")
 
-    # Cabeçalho
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
@@ -75,11 +73,9 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.ln()
     pdf.set_text_color(0, 0, 0)
 
-    # Fonte normal para os dados
     pdf.set_font("Helvetica", "", 7)
     zebra = False
     for _, row in df.iterrows():
-        # Quebra de texto para todas as colunas
         textos_quebrados = []
         max_linhas = 1
         for i, col in enumerate(colunas):
@@ -118,10 +114,8 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         altura_texto = max_linhas * ALTURA_LINHA_TEXTO
         altura_linha = altura_texto + 2 * MARGEM_INTERNA
 
-        # Quebra de página
         if pdf.get_y() + altura_linha > ALTURA_PAGINA - MARGEM:
             pdf.add_page()
-            # Redesenha cabeçalho (com negrito)
             pdf.set_font("Helvetica", "B", 8)
             pdf.set_fill_color(80, 80, 80)
             pdf.set_text_color(255, 255, 255)
@@ -129,7 +123,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
             pdf.ln()
             pdf.set_text_color(0, 0, 0)
-            # Volta a fonte normal para os dados
             pdf.set_font("Helvetica", "", 7)
             zebra = False
 
@@ -172,7 +165,7 @@ def renderizar_secao_consulta(df_existente):
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         filtro_camara = st.selectbox(
-            "Câmara",
+            "Camara",
             ["Todas"] + config.CAMARAS,
             key="filtro_camara"
         )
@@ -183,7 +176,7 @@ def renderizar_secao_consulta(df_existente):
             key="filtro_vaga"
         )
 
-    filtro_texto = st.text_input("Buscar em marca/descrição", key="filtro_texto")
+    filtro_texto = st.text_input("Buscar em marca/descricao", key="filtro_texto")
 
     df_filtrado = df_existente.copy()
     if filtro_camara != "Todas":
@@ -209,7 +202,7 @@ def renderizar_secao_consulta(df_existente):
                 }
             )
         else:
-            st.info("Nenhum registro encontrado para esta combinação.")
+            st.info("Nenhum registro encontrado para esta combinacao.")
     else:
         st.write(f"**Registros encontrados: {len(df_filtrado)}**")
         if not df_filtrado.empty:
@@ -242,19 +235,19 @@ def renderizar_secao_consulta(df_existente):
             df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
             csv_data = output_csv.getvalue().encode('utf-8-sig')
             st.download_button(
-                label="📥 Baixar CSV",
+                label="Baixar CSV",
                 data=csv_data,
                 file_name="relatorio_paletes.csv",
                 mime="text/csv",
                 use_container_width=True
             )
         with col_botao2:
-            if st.button("📄 Baixar PDF (smartphone)", use_container_width=True):
+            if st.button("Baixar PDF (smartphone)", use_container_width=True):
                 with st.spinner("Gerando PDF..."):
-                    pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatório de Paletes - Perecíveis 410")
+                    pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatorio de Paletes - Pereciveis 410")
                     if pdf_bytes:
                         st.download_button(
-                            label="✅ Clique para salvar PDF",
+                            label="Salvar PDF",
                             data=pdf_bytes,
                             file_name="relatorio_paletes.pdf",
                             mime="application/pdf",
@@ -269,13 +262,13 @@ def renderizar_secao_consulta(df_existente):
 
 
 def renderizar_secao_cadastro(sheet, df_existente):
-    camara_opts = ["Selecione a câmara"] + config.CAMARAS
+    camara_opts = ["Selecione a camara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
 
     reset_token = st.session_state.get('reset_counter', 0)
 
     camara_selecionada = st.selectbox(
-        "Câmara",
+        "Camara",
         camara_opts,
         index=0,
         key=f"camara_{reset_token}"
@@ -287,15 +280,15 @@ def renderizar_secao_cadastro(sheet, df_existente):
         key=f"vaga_{reset_token}"
     )
 
-    if camara_selecionada != "Selecione a câmara" and vaga_selecionada != "Selecione a vaga":
+    if camara_selecionada != "Selecione a camara" and vaga_selecionada != "Selecione a vaga":
         if combina_existe(camara_selecionada, vaga_selecionada, df_existente):
-            st.error(f"⚠️ A combinação {camara_selecionada} / {vaga_selecionada} já está sendo usada.")
+            st.error(f"Combinacao {camara_selecionada} / {vaga_selecionada} ja esta sendo usada.")
             st.session_state.bloqueado = True
             st.session_state.camara = None
             st.session_state.vaga = None
             st.session_state.exibir_gerenciamento = True
         else:
-            st.success("✅ Vaga disponível!")
+            st.success("Vaga disponivel!")
             st.session_state.bloqueado = False
             st.session_state.camara = camara_selecionada
             st.session_state.vaga = vaga_selecionada
@@ -307,13 +300,13 @@ def renderizar_secao_cadastro(sheet, df_existente):
         st.session_state.exibir_gerenciamento = False
 
     if (st.session_state.exibir_gerenciamento and
-        camara_selecionada != "Selecione a câmara" and
+        camara_selecionada != "Selecione a camara" and
         vaga_selecionada != "Selecione a vaga"):
         _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada)
 
 
 def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada):
-    with st.expander("🔧 Gerenciar vaga ocupada", expanded=True):
+    with st.expander("Gerenciar vaga ocupada", expanded=True):
         df_filtrado = df_existente[
             (df_existente['camara'] == camara_selecionada) &
             (df_existente['camara-vaga'] == vaga_selecionada)
@@ -330,20 +323,20 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                 }
             )
         else:
-            st.info("Nenhum registro detalhado encontrado (inconsistência de dados).")
+            st.info("Nenhum registro detalhado encontrado.")
 
         st.divider()
-        st.warning("⚠️ **Ação irreversível:** Excluir todos os registros desta vaga.")
+        st.warning("**Acao irreversivel:** Excluir todos os registros desta vaga.")
 
         col_confirm1, col_confirm2 = st.columns(2)
         with col_confirm1:
-            confirmar_exclusao = st.checkbox("✅ Confirmar exclusão de todos os registros desta vaga")
+            confirmar_exclusao = st.checkbox("Confirmar exclusao de todos os registros desta vaga")
         with col_confirm2:
-            if st.button("🗑️ Excluir todos os registros", type="primary", disabled=not confirmar_exclusao):
+            if st.button("Excluir todos os registros", type="primary", disabled=not confirmar_exclusao):
                 with st.spinner("Excluindo registros..."):
                     num_excluidos = excluir_registros_vaga(sheet, camara_selecionada, vaga_selecionada)
                     if num_excluidos > 0:
-                        mensagem = f"{num_excluidos} registro(s) excluído(s) com sucesso!<br><br>A vaga agora está livre."
+                        mensagem = f"{num_excluidos} registro(s) excluido(s) com sucesso! A vaga agora esta livre."
                         exibir_mensagem_centralizada(mensagem, quebrar_linha=True)
                         time.sleep(3)
                         st.session_state.bloqueado = False
@@ -353,8 +346,8 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
                         st.session_state.produtos_temp = []
                         force_reset()
                     else:
-                        st.error("Nenhum registro foi excluído. Verifique se a combinação realmente existe.")
-        st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
+                        st.error("Nenhum registro foi excluido. Verifique se a combinacao realmente existe.")
+        st.info("Apos excluir, a vaga ficara livre para novo cadastro.")
 
 
 def _validar_dataframe(df):
@@ -363,13 +356,13 @@ def _validar_dataframe(df):
         descricao = str(row.get("produto-descricao", "")).strip()
         validade = row.get("validade")
         if pd.isna(validade) or validade == "":
-            return False, f"Linha {idx+1}: data de validade é obrigatória."
+            return False, f"Linha {idx+1}: data de validade e obrigatoria."
         if not marca:
-            return False, f"Linha {idx+1}: marca é obrigatória."
+            return False, f"Linha {idx+1}: marca e obrigatoria."
         if not descricao:
-            return False, f"Linha {idx+1}: descrição é obrigatória."
+            return False, f"Linha {idx+1}: descricao e obrigatoria."
         if len(descricao) > 100:
-            return False, f"Linha {idx+1}: a descrição não pode ter mais de 100 caracteres (atualmente {len(descricao)})."
+            return False, f"Linha {idx+1}: a descricao nao pode ter mais de 100 caracteres (atualmente {len(descricao)})."
     return True, ""
 
 
@@ -388,32 +381,32 @@ def _converter_edited_df(edited_df):
 def renderizar_secao_produtos(sheet):
     if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
         if st.session_state.bloqueado and not st.session_state.exibir_gerenciamento:
-            st.info("💡 Altere a câmara ou vaga para uma combinação livre.")
+            st.info("Altere a camara ou vaga para uma combinacao livre.")
         return
 
-    st.subheader("📋 Produtos no Palete")
+    st.subheader("Produtos no Palete")
 
-    st.markdown("➕ **Novo produto**")
+    st.markdown("**Novo produto**")
     with st.form(key="produto_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
         with col2:
-            descricao = st.text_input("Descrição do produto", max_chars=100,
-                                      help="Máximo de 100 caracteres.")
+            descricao = st.text_input("Descricao do produto", max_chars=100,
+                                      help="Maximo de 100 caracteres.")
             if descricao:
                 st.caption(f"{len(descricao)}/100 caracteres")
         validade = st.date_input("Validade", value=None, format="DD/MM/YYYY")
 
-        if st.form_submit_button("➕ Adicionar"):
+        if st.form_submit_button("Adicionar"):
             if not marca.strip():
                 st.error("Selecione uma marca.")
             elif validade is None:
                 st.error("Selecione a validade.")
             elif not descricao.strip():
-                st.error("Informe a descrição.")
+                st.error("Informe a descricao.")
             elif len(descricao) > 100:
-                st.error(f"A descrição ultrapassou 100 caracteres (atualmente {len(descricao)}).")
+                st.error(f"A descricao ultrapassou 100 caracteres (atualmente {len(descricao)}).")
             else:
                 st.session_state.produtos_temp.append({
                     "produto-marca": marca,
@@ -449,23 +442,23 @@ def renderizar_secao_produtos(sheet):
 
         colA, colB, colC = st.columns(3)
         with colA:
-            if st.button("💾 Salvar alterações", use_container_width=True):
+            if st.button("Salvar alteracoes", use_container_width=True):
                 ok, msg = _validar_dataframe(edited_df)
                 if not ok:
-                    st.error(f"❌ {msg}")
+                    st.error(f" {msg}")
                 else:
                     st.session_state.produtos_temp = _converter_edited_df(edited_df)
                     st.rerun()
         with colB:
-            if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
+            if st.button("Finalizar palete", use_container_width=True, type="primary"):
                 ok, msg = _validar_dataframe(edited_df)
                 if not ok:
-                    st.error(f"❌ {msg}")
+                    st.error(f" {msg}")
                 else:
                     st.session_state.produtos_temp = _converter_edited_df(edited_df)
                     _finalizar_palete(sheet)
         with colC:
-            if st.button("🗑️ Cancelar palete", use_container_width=True):
+            if st.button("Cancelar palete", use_container_width=True):
                 st.session_state.produtos_temp = []
                 st.session_state.camara = None
                 st.session_state.vaga = None
@@ -493,4 +486,9 @@ def _finalizar_palete(sheet):
         )
         time.sleep(3)
         st.session_state.produtos_temp = []
-        st.session
+        st.session_state.camara = None
+        st.session_state.vaga = None
+        st.session_state.bloqueado = False
+        force_reset()
+    except Exception as e:
+        st.error(f"Erro ao salvar: {e}")
