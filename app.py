@@ -33,7 +33,7 @@ st.markdown("""
     /* Centraliza e ajusta proporção do subtítulo (h2) */
     h2 {
         text-align: center;
-        font-size: 1.5rem;      /* Altere o tamanho conforme desejar */
+        font-size: 1.2rem;      /* Altere o tamanho conforme desejar */
         margin-top: 0;
         color: #2c3e50;       /* Cor opcional para o subtítulo */
     }
