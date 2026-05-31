@@ -9,6 +9,7 @@ from utils import exibir_mensagem_centralizada, force_reset
 import time
 from datetime import datetime
 import io
+import csv
 from fpdf import FPDF
 
 # ---------------------------
@@ -22,101 +23,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
     if df.empty:
         return None
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    # Título principal
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, titulo, ln=True, align="C")
-    pdf.ln(5)
-
-    # Data de geração
-    pdf.set_font("Arial", "", 10)
-    data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    pdf.cell(0, 6, f"Gerado em: {data_geracao}", ln=True, align="R")
-    pdf.cell(0, 6, f"Total de registros: {len(df)}", ln=True, align="R")
-    pdf.ln(8)
-
-    # Definir cabeçalhos e larguras proporcionais
-    colunas = list(df.columns)
-    # Ajuste de largura (total A4 com margens = 190mm)
-    larguras = [35, 30, 28, 45, 45]  # conforme número de colunas
-    if len(colunas) == 6:
-        larguras = [32, 24, 24, 40, 40, 30]
-    elif len(colunas) == 4:
-        larguras = [40, 45, 55, 50]
-
-    # Cabeçalho com fundo cinza escuro e texto branco
-    pdf.set_font("Arial", "B", 9)
-    pdf.set_fill_color(80, 80, 80)
-    pdf.set_text_color(255, 255, 255)
-    for i, col in enumerate(colunas):
-        pdf.cell(larguras[i], 8, col, border=1, align="C", fill=True)
-    pdf.ln()
-
-    # Alternância de cores (zebra striping)
-    pdf.set_text_color(0, 0, 0)
-    fill = False
-    for idx, row in df.iterrows():
-        # Altura da linha será dinâmica com base no conteúdo mais alto
-        max_linhas = 1
-        alturas_linhas = []
-        # Pré-calcular número de linhas necessárias para cada coluna
-        for i, col in enumerate(colunas):
-            valor = str(row[col]) if pd.notna(row[col]) else ""
-            # Estima quantas linhas cabem na largura da célula
-            pdf.set_font("Arial", "", 8)
-            largura_celula = larguras[i]
-            # FPDF não tem text wrap automático, simulamos:
-            # Usamos multi_cell internamente, mas para altura precisamos calcular.
-            # Vamos usar um método simples: dividir texto por palavras
-            palavras = valor.split()
-            linha_atual = ""
-            linhas_celula = 1
-            for palavra in palavras:
-                teste = linha_atual + (" " if linha_atual else "") + palavra
-                if pdf.get_string_width(teste) <= largura_celula - 2:
-                    linha_atual = teste
-                else:
-                    linhas_celula += 1
-                    linha_atual = palavra
-            alturas_linhas.append(linhas_celula)
-            max_linhas = max(max_linhas, linhas_celula)
-
-        altura_linha = max_linhas * 5  # 5mm por linha (fonte 8)
-        # Desenhar células
-        x_inicial = pdf.get_x()
-        y_inicial = pdf.get_y()
-        pdf.set_font("Arial", "", 8)
-        for i, col in enumerate(colunas):
-            valor = str(row[col]) if pd.notna(row[col]) else ""
-            # Cor de fundo alternada
-            if fill:
-                pdf.set_fill_color(230, 230, 230)
-            else:
-                pdf.set_fill_color(255, 255, 255)
-            pdf.set_y(y_inicial)
-            pdf.set_x(x_inicial + sum(larguras[:i]))
-            # Escrever com multi_cell na altura calculada
-            pdf.multi_cell(larguras[i], 5, valor, border=1, align="L", fill=fill)
-        pdf.set_y(y_inicial + altura_linha)
-        pdf.set_x(x_inicial)
-        fill = not fill
-
-    # Retornar bytes do PDF
-    return pdf.output(dest='S').encode('latin1')  # FPDF retorna bytes com latin1
-    # Nota: FPDF2 pode retornar bytes com output(dest='S'), mas precisamos garantir codificação.
-    # Ajuste: usar io.BytesIO
-    # Vou reimplementar usando buffer de bytes para garantir.
-
-# Implementação alternativa usando buffer
-def gerar_pdf_tabela_seguro(df, titulo="Relatório de Paletes"):
-    if df.empty:
-        return None
-    from fpdf import FPDF
-    import io
 
     pdf = FPDF()
     pdf.add_page()
@@ -160,8 +66,6 @@ def gerar_pdf_tabela_seguro(df, titulo="Relatório de Paletes"):
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             pdf.set_font("Arial", "", 8)
-            # Número aproximado de linhas: largura da célula
-            # Usamos get_string_width e quebra manual
             largura_util = larguras[i] - 2
             palavras = valor.split()
             linhas = 1
@@ -285,7 +189,6 @@ def renderizar_secao_consulta(df_existente):
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
             # CSV
-            import csv
             from io import StringIO
             output_csv = StringIO()
             df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
@@ -301,7 +204,7 @@ def renderizar_secao_consulta(df_existente):
             # PDF
             if st.button("📄 Baixar PDF (A4)", use_container_width=True):
                 with st.spinner("Gerando PDF..."):
-                    pdf_bytes = gerar_pdf_tabela_seguro(df_export, titulo="Relatório de Paletes - Perecíveis 410")
+                    pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatório de Paletes - Perecíveis 410")
                     if pdf_bytes:
                         st.download_button(
                             label="✅ Clique para salvar PDF",
@@ -319,12 +222,9 @@ def renderizar_secao_consulta(df_existente):
 
 def renderizar_secao_cadastro(sheet, df_existente):
     """Renderiza a seção de cadastro de palete (câmara/vaga)."""
-    # Título "Cadastro de Palete" removido conforme solicitado
-
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
     vaga_opts = ["Selecione a vaga"] + config.VAGAS
 
-    # Obtém o contador de reset do session_state (incrementado pelo force_reset)
     reset_token = st.session_state.get('reset_counter', 0)
 
     camara_selecionada = st.selectbox(
@@ -359,7 +259,6 @@ def renderizar_secao_cadastro(sheet, df_existente):
         st.session_state.vaga = None
         st.session_state.exibir_gerenciamento = False
 
-    # Gerenciamento de vaga ocupada
     if (st.session_state.exibir_gerenciamento and
         camara_selecionada != "Selecione a câmara" and
         vaga_selecionada != "Selecione a vaga"):
@@ -417,7 +316,7 @@ def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga
         st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
 
 def _validar_dataframe(df):
-    """Retorna (True, mensagem_erro) se houver campos vazios ou inválidos."""
+    """Valida campos obrigatórios."""
     for idx, row in df.iterrows():
         marca = str(row.get("produto-marca", "")).strip()
         descricao = str(row.get("produto-descricao", "")).strip()
@@ -431,7 +330,7 @@ def _validar_dataframe(df):
     return True, ""
 
 def _converter_edited_df(edited_df):
-    """Converte o DataFrame editado para lista de dicionários, formatando datas."""
+    """Converte DataFrame editado para lista de dicionários."""
     produtos = edited_df.to_dict("records")
     for p in produtos:
         if isinstance(p.get("validade"), pd.Timestamp):
@@ -451,7 +350,6 @@ def renderizar_secao_produtos(sheet):
 
     st.subheader("📋 Produtos no Palete")
 
-    # Formulário de adição
     st.markdown("➕ **Novo produto**")
     with st.form(key="produto_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -476,7 +374,6 @@ def renderizar_secao_produtos(sheet):
                 })
                 st.rerun()
 
-    # Tabela editável
     if st.session_state.produtos_temp:
         df = pd.DataFrame(st.session_state.produtos_temp)
         df = df[["produto-marca", "produto-descricao", "validade"]]
@@ -499,4 +396,61 @@ def renderizar_secao_produtos(sheet):
 
         st.write("**Produtos neste palete:**")
         edited_df = st.data_editor(
-            
+            df,
+            column_config=column_config,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="produtos_editor"
+        )
+
+        colA, colB, colC = st.columns(3)
+        with colA:
+            if st.button("💾 Salvar alterações", use_container_width=True):
+                ok, msg = _validar_dataframe(edited_df)
+                if not ok:
+                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                else:
+                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
+                    st.rerun()
+        with colB:
+            if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
+                ok, msg = _validar_dataframe(edited_df)
+                if not ok:
+                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
+                else:
+                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
+                    _finalizar_palete(sheet)
+        with colC:
+            if st.button("🗑️ Cancelar palete", use_container_width=True):
+                st.session_state.produtos_temp = []
+                st.session_state.camara = None
+                st.session_state.vaga = None
+                st.session_state.bloqueado = False
+                force_reset()
+    else:
+        st.info("Nenhum produto adicionado ainda.")
+
+def _finalizar_palete(sheet):
+    from data_access import salvar_registros
+    registros_para_gravar = []
+    for prod in st.session_state.produtos_temp:
+        registros_para_gravar.append({
+            "camara": st.session_state.camara,
+            "camara-vaga": st.session_state.vaga,
+            "produto-marca": prod["produto-marca"],
+            "produto-descricao": prod["produto-descricao"],
+            "validade": prod["validade"]
+        })
+    try:
+        salvar_registros(sheet, registros_para_gravar)
+        exibir_mensagem_centralizada(
+            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
+        )
+        time.sleep(3)
+        st.session_state.produtos_temp = []
+        st.session_state.camara = None
+        st.session_state.vaga = None
+        st.session_state.bloqueado = False
+        force_reset()
+    except Exception as e:
+        st.error(f"Erro ao salvar: {e}")
