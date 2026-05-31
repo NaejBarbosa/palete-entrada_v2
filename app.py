@@ -17,7 +17,7 @@ from utils import exibir_mensagem_centralizada, force_reset
 # Configuração da página
 # ------------------------------
 st.set_page_config(page_title="Registro de Paletes", layout="centered")
-st.title("❄️ Entrada de Paletes | Perecíveis")
+st.title("❄️Perecíveis | 410")
 
 # ------------------------------
 # CSS mínimo (apenas aparência, sem scroll)
