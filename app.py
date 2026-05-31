@@ -28,7 +28,7 @@ st.markdown(
 )
 
 # ------------------------------
-# CSS (centralização, botões, etc.)
+# CSS (sem forçar largura dos botões)
 # ------------------------------
 st.markdown("""
 <style>
@@ -52,7 +52,7 @@ st.markdown("""
         margin-bottom: 1.2rem;
         color: #555;
     }
-    /* Removido o estilo que forçava largura 100% nos botões */
+    /* NÃO definir largura para botões */
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,20 +81,22 @@ sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
 # ------------------------------
-# Dois botões centralizados (Cadastrar / Consultar) - LADO A LADO
+# Botões Cadastrar / Consultar lado a lado (sem CSS conflitante)
 # ------------------------------
-col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
-with col_b2:
-    col_a, col_b = st.columns(2)
-    with col_a:
+# Cria 3 colunas: margem esquerda, conteúdo, margem direita
+col_esq, col_meio, col_dir = st.columns([1, 2, 1])
+with col_meio:
+    # Duas colunas internas para os botões
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
         if st.button("📝 Cadastrar", 
-                     use_container_width=False,   # alterado para False
+                     key="btn_cadastrar",
                      type="primary" if st.session_state.modo == "Cadastrar" else "secondary"):
             st.session_state.modo = "Cadastrar"
             st.rerun()
-    with col_b:
+    with btn_col2:
         if st.button("🔍 Consultar", 
-                     use_container_width=False,   # alterado para False
+                     key="btn_consultar",
                      type="primary" if st.session_state.modo == "Consultar" else "secondary"):
             st.session_state.modo = "Consultar"
             st.rerun()
