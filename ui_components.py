@@ -13,69 +13,71 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF da tabela filtrada (layout otimizado para smartphone)
+# Função para gerar PDF da tabela filtrada (formato otimizado para smartphone)
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
-    Gera um arquivo PDF com layout otimizado para visualização em smartphones:
-    - Orientação paisagem (landscape)
-    - Fontes maiores para título, cabeçalho e dados
-    - Ajuste automático de quebra de linha com altura dinâmica
+    Gera um arquivo PDF com formato otimizado para smartphones:
+    - Tamanho de página personalizado: 90mm x 150mm (~9:16)
+    - Orientação retrato
+    - Fontes grandes para melhor legibilidade
+    - Quebra de linha automática em todas as colunas
     - Retorna bytes do PDF.
     """
     if df.empty:
         return None
 
-    # Orientação paisagem (L) e unidade mm
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.set_auto_page_break(auto=True, margin=15)
+    # Tamanho personalizado: 90mm largura x 150mm altura (cabe perfeitamente na tela do celular)
+    LARGURA_PAGINA_MM = 90
+    ALTURA_PAGINA_MM = 150
+
+    pdf = FPDF(orientation='P', unit='mm', format=(LARGURA_PAGINA_MM, ALTURA_PAGINA_MM))
+    pdf.set_auto_page_break(auto=True, margin=10)  # margem inferior menor
     pdf.add_page()
 
-    # Título principal (fonte maior)
-    pdf.set_font("Helvetica", "B", 18)
-    pdf.cell(0, 12, titulo, ln=True, align="C")
-    pdf.ln(6)
+    # Título principal
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 8, titulo, ln=True, align="C")
+    pdf.ln(3)
 
     # Data e total de registros
-    pdf.set_font("Helvetica", "", 11)
+    pdf.set_font("Helvetica", "", 8)
     data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    pdf.cell(0, 7, f"Gerado em: {data_geracao}", ln=True, align="R")
-    pdf.cell(0, 7, f"Total de registros: {len(df)}", ln=True, align="R")
-    pdf.ln(8)
+    pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=True, align="R")
+    pdf.cell(0, 5, f"Total: {len(df)} registros", ln=True, align="R")
+    pdf.ln(4)
 
     colunas = list(df.columns)
-    # Largura útil em paisagem A4 = 277mm (menos margens)
-    # Definir larguras proporcionais ao número de colunas
+    # Definir larguras proporcionais à página (total 86mm considerando margens internas)
     if len(colunas) == 6:
         # registro, câmara, vaga, marca, descrição, validade
-        larguras = [35, 30, 30, 50, 50, 30]  # total ~225mm
+        larguras = [17, 12, 12, 17, 17, 11]  # soma = 86mm
     elif len(colunas) == 4:
-        larguras = [45, 50, 60, 50]
+        larguras = [22, 22, 24, 18]  # soma = 86mm
     else:
-        larguras = [40, 35, 35, 55, 55]  # fallback
+        larguras = [20, 15, 15, 20, 16]  # fallback (soma ~86mm)
 
-    # Cabeçalho com fonte maior
-    pdf.set_font("Helvetica", "B", 12)
+    # Cabeçalho
+    pdf.set_font("Helvetica", "B", 9)
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
     for i, col in enumerate(colunas):
-        pdf.cell(larguras[i], 10, col, border=1, align="C", fill=True)
+        pdf.cell(larguras[i], 7, col, border=1, align="C", fill=True)
     pdf.ln()
     pdf.set_text_color(0, 0, 0)
 
-    # Dados com fonte maior e zebra striping
-    pdf.set_font("Helvetica", "", 10)
+    # Dados
+    pdf.set_font("Helvetica", "", 8)
     fill = False
     for idx, row in df.iterrows():
-        # Calcular altura máxima necessária para esta linha (baseado na quebra de texto)
+        # Calcular altura máxima da linha considerando quebra de texto
         alturas_celulas = []
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            # Número estimado de linhas necessárias
             palavras = valor.split()
             linha_atual = ""
             linhas = 1
-            largura_max = larguras[i] - 2  # margem interna de 2mm
+            largura_max = larguras[i] - 1.5  # margem interna de 1.5mm
             for palavra in palavras:
                 teste = linha_atual + (" " if linha_atual else "") + palavra
                 if pdf.get_string_width(teste) <= largura_max:
@@ -84,25 +86,25 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                     linhas += 1
                     linha_atual = palavra
             alturas_celulas.append(linhas)
-        altura_linha = max(alturas_celulas) * 6  # 6mm por linha
+        altura_linha = max(alturas_celulas) * 4.5  # 4.5mm por linha
 
-        # Verificar se precisa de nova página
-        if pdf.get_y() + altura_linha > 190:  # limite para landscape A4
+        # Verificar quebra de página (reserva 12mm no final)
+        if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - 12:
             pdf.add_page()
             # Redesenhar cabeçalho
-            pdf.set_font("Helvetica", "B", 12)
+            pdf.set_font("Helvetica", "B", 9)
             pdf.set_fill_color(80, 80, 80)
             pdf.set_text_color(255, 255, 255)
             for i, col in enumerate(colunas):
-                pdf.cell(larguras[i], 10, col, border=1, align="C", fill=True)
+                pdf.cell(larguras[i], 7, col, border=1, align="C", fill=True)
             pdf.ln()
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # Desenhar células da linha
+        # Desenhar células
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
-        pdf.set_font("Helvetica", "", 10)
+        pdf.set_font("Helvetica", "", 8)
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             pdf.set_y(y_inicial)
@@ -111,8 +113,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # multi_cell com altura de linha 6mm e texto justificado à esquerda
-            pdf.multi_cell(larguras[i], 6, valor, border=1, align="L", fill=fill)
+            pdf.multi_cell(larguras[i], 4.5, valor, border=1, align="L", fill=fill)
         pdf.set_y(y_inicial + altura_linha)
         pdf.set_x(x_inicial)
         fill = not fill
@@ -205,7 +206,7 @@ def renderizar_secao_consulta(df_existente):
                 use_container_width=True
             )
         with col_botao2:
-            if st.button("📄 Baixar PDF (paisagem)", use_container_width=True):
+            if st.button("📄 Baixar PDF (smartphone)", use_container_width=True):
                 with st.spinner("Gerando PDF..."):
                     pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatório de Paletes - Perecíveis 410")
                     if pdf_bytes:
