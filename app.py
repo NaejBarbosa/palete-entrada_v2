@@ -52,39 +52,9 @@ st.markdown("""
         margin-bottom: 1.2rem;
         color: #555;
     }
-    /* Container dos botões centralizado */
-    .botao-container {
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    /* Estilo base dos botões */
-    .botao-toggle {
-        background-color: #f0f2f6;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 8px 24px;
-        font-size: 1rem;
-        font-weight: 500;
-        cursor: pointer;
-        text-align: center;
-        transition: all 0.2s ease;
-        min-width: 140px;
-    }
-    .botao-toggle.ativo {
-        background-color: #0068c9;
-        border-color: #0068c9;
-        color: white;
-    }
-    /* Remove o estilo padrão do botão Streamlit dentro do div */
+    /* Remove o estilo padrão do botão Streamlit dentro do container */
     .stButton button {
         width: 100%;
-        background: none;
-        border: none;
-        padding: 0;
-        margin: 0;
-        box-shadow: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -114,8 +84,6 @@ df_existente = carregar_dados_existentes(sheet)
 # ------------------------------
 # Dois botões centralizados (Cadastrar / Consultar)
 # ------------------------------
-# Usamos HTML + st.markdown para criar botões customizados que acionam callbacks via session_state
-# Mas para manter compatibilidade com rerun, usaremos st.columns com st.button
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     col_a, col_b = st.columns(2)
