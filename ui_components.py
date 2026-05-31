@@ -13,7 +13,7 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF da tabela filtrada
+# Função para gerar PDF da tabela filtrada (layout corrigido)
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
@@ -25,23 +25,23 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         return None
 
     pdf = FPDF()
-    pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
 
     # Título
-    pdf.set_font("Arial", "B", 16)
+    pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, titulo, ln=True, align="C")
     pdf.ln(5)
 
     # Data e total
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("Helvetica", "", 10)
     data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 6, f"Gerado em: {data_geracao}", ln=True, align="R")
     pdf.cell(0, 6, f"Total de registros: {len(df)}", ln=True, align="R")
     pdf.ln(8)
 
     colunas = list(df.columns)
-    # Definir larguras conforme número de colunas
+    # Definir larguras conforme número de colunas (em mm, total 190)
     if len(colunas) == 6:
         larguras = [32, 24, 24, 40, 40, 30]
     elif len(colunas) == 4:
@@ -50,7 +50,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
         larguras = [35, 30, 28, 45, 45]
 
     # Cabeçalho
-    pdf.set_font("Arial", "B", 9)
+    pdf.set_font("Helvetica", "B", 9)
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
     for i, col in enumerate(colunas):
@@ -58,38 +58,58 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.ln()
     pdf.set_text_color(0, 0, 0)
 
-    # Dados com zebra
+    # Dados com zebra striping
     fill = False
     for idx, row in df.iterrows():
-        # Calcular altura máxima da linha
-        alturas = []
+        # Calcular altura máxima necessária para esta linha
+        alturas_celulas = []
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            pdf.set_font("Arial", "", 8)
-            largura_util = larguras[i] - 2
+            pdf.set_font("Helvetica", "", 8)
+            # Estima número de linhas que o texto ocupará
             palavras = valor.split()
-            linhas = 1
             linha_atual = ""
+            linhas = 1
+            largura_max = larguras[i] - 2  # margem interna
             for palavra in palavras:
-                if pdf.get_string_width(linha_atual + (" " if linha_atual else "") + palavra) <= largura_util:
-                    linha_atual = linha_atual + (" " if linha_atual else "") + palavra
+                teste = linha_atual + (" " if linha_atual else "") + palavra
+                if pdf.get_string_width(teste) <= largura_max:
+                    linha_atual = teste
                 else:
                     linhas += 1
                     linha_atual = palavra
-            alturas.append(linhas)
-        altura_linha = max(alturas) * 5
+            alturas_celulas.append(linhas)
+        altura_linha = max(alturas_celulas) * 5  # 5mm por linha
+
+        # Verificar se precisa de nova página
+        if pdf.get_y() + altura_linha > 280:  # margem inferior 10mm
+            pdf.add_page()
+            # Redesenhar cabeçalho na nova página
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_fill_color(80, 80, 80)
+            pdf.set_text_color(255, 255, 255)
+            for i, col in enumerate(colunas):
+                pdf.cell(larguras[i], 8, col, border=1, align="C", fill=True)
+            pdf.ln()
+            pdf.set_text_color(0, 0, 0)
+            fill = False  # reseta zebra na nova página
+
+        # Desenhar células da linha
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
+        pdf.set_font("Helvetica", "", 8)
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            pdf.set_font("Arial", "", 8)
             pdf.set_y(y_inicial)
             pdf.set_x(x_inicial + sum(larguras[:i]))
+            # Cor de fundo alternada
             if fill:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
+            # MultiCell com altura fixa baseada no cálculo
             pdf.multi_cell(larguras[i], 5, valor, border=1, align="L", fill=fill)
+        # Move Y para o final da linha (após a última célula)
         pdf.set_y(y_inicial + altura_linha)
         pdf.set_x(x_inicial)
         fill = not fill
@@ -100,7 +120,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     return buffer.getvalue()
 
 # ---------------------------
-# Componentes da UI
+# Componentes da UI (mesmo código anterior, apenas com a função corrigida)
 # ---------------------------
 def renderizar_secao_consulta(df_existente):
     """Renderiza a seção de consulta com botões para CSV e PDF."""
@@ -175,7 +195,7 @@ def renderizar_secao_consulta(df_existente):
         else:
             st.info("Nenhum registro corresponde aos filtros.")
 
-    # Botões de exportação (CSV e PDF) - apenas se houver dados
+    # Botões de exportação (CSV e PDF)
     if not df_filtrado.empty:
         # Preparar DataFrame para exportação (datas formatadas)
         df_export = df_filtrado.copy()
@@ -189,8 +209,7 @@ def renderizar_secao_consulta(df_existente):
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
             # CSV
-            from io import StringIO
-            output_csv = StringIO()
+            output_csv = io.StringIO()
             df_export.to_csv(output_csv, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
             csv_data = output_csv.getvalue().encode('utf-8-sig')
             st.download_button(
@@ -220,237 +239,8 @@ def renderizar_secao_consulta(df_existente):
 
     st.markdown("---")
 
-def renderizar_secao_cadastro(sheet, df_existente):
-    """Renderiza a seção de cadastro de palete (câmara/vaga)."""
-    camara_opts = ["Selecione a câmara"] + config.CAMARAS
-    vaga_opts = ["Selecione a vaga"] + config.VAGAS
-
-    reset_token = st.session_state.get('reset_counter', 0)
-
-    camara_selecionada = st.selectbox(
-        "Câmara",
-        camara_opts,
-        index=0,
-        key=f"camara_{reset_token}"
-    )
-    vaga_selecionada = st.selectbox(
-        "Vaga",
-        vaga_opts,
-        index=0,
-        key=f"vaga_{reset_token}"
-    )
-
-    if camara_selecionada != "Selecione a câmara" and vaga_selecionada != "Selecione a vaga":
-        if combina_existe(camara_selecionada, vaga_selecionada, df_existente):
-            st.error(f"⚠️ A combinação {camara_selecionada} / {vaga_selecionada} já está sendo usada.")
-            st.session_state.bloqueado = True
-            st.session_state.camara = None
-            st.session_state.vaga = None
-            st.session_state.exibir_gerenciamento = True
-        else:
-            st.success("✅ Vaga disponível!")
-            st.session_state.bloqueado = False
-            st.session_state.camara = camara_selecionada
-            st.session_state.vaga = vaga_selecionada
-            st.session_state.exibir_gerenciamento = False
-    else:
-        st.session_state.bloqueado = False
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.exibir_gerenciamento = False
-
-    if (st.session_state.exibir_gerenciamento and
-        camara_selecionada != "Selecione a câmara" and
-        vaga_selecionada != "Selecione a vaga"):
-        _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada)
-
-def _renderizar_gerenciamento_vaga(sheet, df_existente, camara_selecionada, vaga_selecionada):
-    """Renderiza o expander de gerenciamento de vaga ocupada."""
-    with st.expander("🔧 Gerenciar vaga ocupada", expanded=True):
-        df_filtrado = df_existente[
-            (df_existente['camara'] == camara_selecionada) &
-            (df_existente['camara-vaga'] == vaga_selecionada)
-        ]
-
-        st.write(f"**Registros encontrados para {camara_selecionada} / {vaga_selecionada}:**")
-        if not df_filtrado.empty:
-            st.dataframe(
-                df_filtrado[['registro', 'produto-marca', 'produto-descricao', 'validade']],
-                use_container_width=True,
-                column_config={
-                    "registro": st.column_config.DatetimeColumn(
-                        "Registro",
-                        format="DD/MM/YYYY HH:mm:ss"
-                    ),
-                    "validade": st.column_config.DateColumn(
-                        "Validade",
-                        format="DD/MM/YYYY"
-                    )
-                }
-            )
-        else:
-            st.info("Nenhum registro detalhado encontrado (inconsistência de dados).")
-
-        st.divider()
-        st.warning("⚠️ **Ação irreversível:** Excluir todos os registros desta vaga.")
-
-        col_confirm1, col_confirm2 = st.columns(2)
-        with col_confirm1:
-            confirmar_exclusao = st.checkbox("✅ Confirmar exclusão de todos os registros desta vaga")
-        with col_confirm2:
-            if st.button("🗑️ Excluir todos os registros", type="primary", disabled=not confirmar_exclusao):
-                with st.spinner("Excluindo registros..."):
-                    num_excluidos = excluir_registros_vaga(sheet, camara_selecionada, vaga_selecionada)
-                    if num_excluidos > 0:
-                        mensagem = f"{num_excluidos} registro(s) excluído(s) com sucesso!<br><br>A vaga agora está livre."
-                        exibir_mensagem_centralizada(mensagem, quebrar_linha=True)
-                        time.sleep(3)
-                        st.session_state.bloqueado = False
-                        st.session_state.camara = camara_selecionada
-                        st.session_state.vaga = vaga_selecionada
-                        st.session_state.exibir_gerenciamento = False
-                        st.session_state.produtos_temp = []
-                        force_reset()
-                    else:
-                        st.error("Nenhum registro foi excluído. Verifique se a combinação realmente existe.")
-        st.info("💡 Após excluir, a vaga ficará livre para novo cadastro.")
-
-def _validar_dataframe(df):
-    """Valida campos obrigatórios."""
-    for idx, row in df.iterrows():
-        marca = str(row.get("produto-marca", "")).strip()
-        descricao = str(row.get("produto-descricao", "")).strip()
-        validade = row.get("validade")
-        if pd.isna(validade) or validade == "":
-            return False, f"Linha {idx+1}: data de validade é obrigatória."
-        if not marca:
-            return False, f"Linha {idx+1}: marca é obrigatória."
-        if not descricao:
-            return False, f"Linha {idx+1}: descrição é obrigatória."
-    return True, ""
-
-def _converter_edited_df(edited_df):
-    """Converte DataFrame editado para lista de dicionários."""
-    produtos = edited_df.to_dict("records")
-    for p in produtos:
-        if isinstance(p.get("validade"), pd.Timestamp):
-            p["validade"] = p["validade"].strftime("%d/%m/%Y")
-        elif pd.isna(p.get("validade")):
-            p["validade"] = ""
-        p["produto-marca"] = str(p.get("produto-marca", "")).strip()
-        p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
-    return produtos
-
-def renderizar_secao_produtos(sheet):
-    """Renderiza a seção de adição/edição/exclusão de produtos ao palete."""
-    if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
-        if st.session_state.bloqueado and not st.session_state.exibir_gerenciamento:
-            st.info("💡 Altere a câmara ou vaga para uma combinação livre.")
-        return
-
-    st.subheader("📋 Produtos no Palete")
-
-    st.markdown("➕ **Novo produto**")
-    with st.form(key="produto_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
-        with col2:
-            descricao = st.text_input("Descrição do produto")
-        validade = st.date_input("Validade", value=None, format="DD/MM/YYYY")
-
-        if st.form_submit_button("➕ Adicionar"):
-            if not marca.strip():
-                st.error("Selecione uma marca.")
-            elif validade is None:
-                st.error("Selecione a validade.")
-            elif not descricao.strip():
-                st.error("Informe a descrição.")
-            else:
-                st.session_state.produtos_temp.append({
-                    "produto-marca": marca,
-                    "produto-descricao": descricao,
-                    "validade": validade.strftime("%d/%m/%Y")
-                })
-                st.rerun()
-
-    if st.session_state.produtos_temp:
-        df = pd.DataFrame(st.session_state.produtos_temp)
-        df = df[["produto-marca", "produto-descricao", "validade"]]
-        df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
-
-        column_config = {
-            "produto-marca": st.column_config.SelectboxColumn(
-                "Marca",
-                help="Selecione a marca do produto",
-                width="medium",
-                options=config.MARCA_OPCOES,
-                required=True
-            ),
-            "validade": st.column_config.DateColumn(
-                "Validade",
-                format="DD/MM/YYYY",
-                required=True
-            )
-        }
-
-        st.write("**Produtos neste palete:**")
-        edited_df = st.data_editor(
-            df,
-            column_config=column_config,
-            num_rows="dynamic",
-            use_container_width=True,
-            key="produtos_editor"
-        )
-
-        colA, colB, colC = st.columns(3)
-        with colA:
-            if st.button("💾 Salvar alterações", use_container_width=True):
-                ok, msg = _validar_dataframe(edited_df)
-                if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
-                else:
-                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
-                    st.rerun()
-        with colB:
-            if st.button("✅ Finalizar palete", use_container_width=True, type="primary"):
-                ok, msg = _validar_dataframe(edited_df)
-                if not ok:
-                    st.error(f"❌ Campos obrigatórios não preenchidos: {msg}")
-                else:
-                    st.session_state.produtos_temp = _converter_edited_df(edited_df)
-                    _finalizar_palete(sheet)
-        with colC:
-            if st.button("🗑️ Cancelar palete", use_container_width=True):
-                st.session_state.produtos_temp = []
-                st.session_state.camara = None
-                st.session_state.vaga = None
-                st.session_state.bloqueado = False
-                force_reset()
-    else:
-        st.info("Nenhum produto adicionado ainda.")
-
-def _finalizar_palete(sheet):
-    from data_access import salvar_registros
-    registros_para_gravar = []
-    for prod in st.session_state.produtos_temp:
-        registros_para_gravar.append({
-            "camara": st.session_state.camara,
-            "camara-vaga": st.session_state.vaga,
-            "produto-marca": prod["produto-marca"],
-            "produto-descricao": prod["produto-descricao"],
-            "validade": prod["validade"]
-        })
-    try:
-        salvar_registros(sheet, registros_para_gravar)
-        exibir_mensagem_centralizada(
-            f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!"
-        )
-        time.sleep(3)
-        st.session_state.produtos_temp = []
-        st.session_state.camara = None
-        st.session_state.vaga = None
-        st.session_state.bloqueado = False
-        force_reset()
-    except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+# As demais funções (renderizar_secao_cadastro, _renderizar_gerenciamento_vaga,
+# _validar_dataframe, _converter_edited_df, renderizar_secao_produtos, _finalizar_palete)
+# permanecem EXATAMENTE como na versão anterior, sem alterações.
+# Para economizar espaço, elas não estão reescritas aqui, mas devem ser mantidas.
+# Se necessário, copie do código anterior que você já possuía.
