@@ -1,6 +1,4 @@
-# app.py
-# Ponto de entrada principal da aplicação
-
+# app.py - Versão corrigida para mobile
 import streamlit as st
 import time
 
@@ -13,52 +11,51 @@ from ui_components import (
 )
 from utils import exibir_mensagem_centralizada, force_reset
 
-# ------------------------------
-# Configuração da página
-# ------------------------------
 st.set_page_config(page_title="Registro de Paletes", layout="centered")
 
-# Título principal modificado
 st.title("❄️ Perecíveis | 410")
-
-# Descrição com fonte personalizada
 st.markdown(
     '<p class="descricao-app">Controle de paletes das câmaras frias/congeladas da loja 410 do Fort Atacadista.</p>',
     unsafe_allow_html=True
 )
 
-# ------------------------------
-# CSS (sem forçar largura dos botões)
-# ------------------------------
+# CSS FORÇANDO BOTÕES LADO A LADO NO MOBILE
 st.markdown("""
 <style>
-    /* Centraliza e ajusta proporção do título principal (h1) */
-    h1 {
-        text-align: center;
-        font-size: 2.8rem;
-        margin-bottom: 0.5rem;
+    h1 { text-align: center; font-size: 2.8rem; margin-bottom: 0.5rem; }
+    h2 { text-align: center; font-size: 1.5rem; margin-top: 0; color: #2c3e50; }
+    .descricao-app { text-align: center; font-size: 1rem; margin-bottom: 1.2rem; color: #555; }
+
+    /* Força os botões a ficarem lado a lado em qualquer tamanho de tela */
+    div[data-testid="column"]:has(button) {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        flex-wrap: nowrap !important;
     }
-    /* Centraliza subtítulos (se houver) */
-    h2 {
-        text-align: center;
-        font-size: 1.5rem;
-        margin-top: 0;
-        color: #2c3e50;
+    
+    /* Cada botão ocupa largura automática, não 100% */
+    .stButton button {
+        width: auto !important;
+        white-space: nowrap !important;
+        min-width: 120px !important;
     }
-    /* Estilo da descrição */
-    .descricao-app {
-        text-align: center;
-        font-size: 1rem;
-        margin-bottom: 1.2rem;
-        color: #555;
+    
+    /* No celular, garante que as colunas internas não quebrem */
+    @media (max-width: 640px) {
+        div[data-testid="column"]:has(button) {
+            flex-direction: row !important;
+        }
+        .stButton button {
+            font-size: 14px !important;
+            padding: 0.5rem 1rem !important;
+        }
     }
-    /* NÃO definir largura para botões */
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------
-# Inicialização da sessão
-# ------------------------------
+# Sessão
 if 'produtos_temp' not in st.session_state:
     st.session_state.produtos_temp = []
 if 'camara' not in st.session_state:
@@ -70,42 +67,32 @@ if 'bloqueado' not in st.session_state:
 if 'exibir_gerenciamento' not in st.session_state:
     st.session_state.exibir_gerenciamento = False
 if 'modo' not in st.session_state:
-    st.session_state.modo = "Cadastrar"   # padrão
+    st.session_state.modo = "Cadastrar"
 if 'reset_counter' not in st.session_state:
-    st.session_state.reset_counter = 0    # controle de reset dos selects
+    st.session_state.reset_counter = 0
 
-# ------------------------------
-# Conexão e carregamento de dados
-# ------------------------------
 sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
-# ------------------------------
-# Botões Cadastrar / Consultar lado a lado (sem CSS conflitante)
-# ------------------------------
-# Cria 3 colunas: margem esquerda, conteúdo, margem direita
-col_esq, col_meio, col_dir = st.columns([1, 2, 1])
-with col_meio:
-    # Duas colunas internas para os botões
-    btn_col1, btn_col2 = st.columns(2)
-    with btn_col1:
+# Botões centralizados e lado a lado (mesma estrutura, mas CSS força)
+col_esq, col_centro, col_dir = st.columns([1, 2, 1])
+with col_centro:
+    btn1, btn2 = st.columns(2)
+    with btn1:
         if st.button("📝 Cadastrar", 
-                     key="btn_cadastrar",
+                     key="cadastrar_btn",
                      type="primary" if st.session_state.modo == "Cadastrar" else "secondary"):
             st.session_state.modo = "Cadastrar"
             st.rerun()
-    with btn_col2:
+    with btn2:
         if st.button("🔍 Consultar", 
-                     key="btn_consultar",
+                     key="consultar_btn",
                      type="primary" if st.session_state.modo == "Consultar" else "secondary"):
             st.session_state.modo = "Consultar"
             st.rerun()
 
-# ------------------------------
-# Renderização condicional conforme o modo
-# ------------------------------
 if st.session_state.modo == "Consultar":
     renderizar_secao_consulta(df_existente)
-else:   # Cadastrar
+else:
     renderizar_secao_cadastro(sheet, df_existente)
     renderizar_secao_produtos(sheet)
