@@ -56,14 +56,6 @@ def exibir_mensagem_centralizada(mensagem, quebrar_linha=False):
     st.markdown(html, unsafe_allow_html=True)
 
 def force_reset():
-    """Força o reset dos componentes via query params (compatível com versões antigas e novas)."""
-    try:
-        # Streamlit >= 1.27.0
-        reset_token = int(st.query_params.get("reset_token", 0))
-        st.query_params["reset_token"] = reset_token + 1
-    except AttributeError:
-        # Streamlit < 1.27.0 (fallback)
-        params = st.experimental_get_query_params()
-        current = int(params.get("reset_token", [0])[0])
-        st.experimental_set_query_params(reset_token=current + 1)
+    """Força o reset dos componentes usando session_state (compatível com todas as versões)."""
+    st.session_state.reset_counter = st.session_state.get('reset_counter', 0) + 1
     st.rerun()
