@@ -17,14 +17,12 @@ def _quebrar_palavra(palavra, largura_max, pdf):
     pedacos = []
     resto = palavra
     while resto:
-        # tenta o maior pedaço possível
         for i in range(len(resto), 0, -1):
             if pdf.get_string_width(resto[:i]) <= largura_max:
                 pedacos.append(resto[:i])
                 resto = resto[i:]
                 break
         else:
-            # se nada couber, pega um caractere
             pedacos.append(resto[0])
             resto = resto[1:]
     return pedacos
@@ -235,6 +233,10 @@ def renderizar_secao_consulta(df_existente):
         if 'validade' in df_export.columns:
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
+        
+        # 🔥 LIMITA A DESCRIÇÃO A 100 CARACTERES PARA EVITAR ESTOURO
+        if 'produto-descricao' in df_export.columns:
+            df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
 
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
