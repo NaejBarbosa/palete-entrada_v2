@@ -16,7 +16,7 @@ st.set_page_config(page_title="Registro de Paletes", layout="centered")
 st.title("❄️ Perecíveis | 410")
 
 st.markdown(
-    '<p class="descricao-app">Controle de paletes das câmaras frias/congeladas da loja 410 do Fort Atacadista.</p>',
+    '<p class="descricao-app">Controle de paletes das câmaras frias/ congeladas da loja 410 do Fort Atacadista.</p>',
     unsafe_allow_html=True
 )
 
