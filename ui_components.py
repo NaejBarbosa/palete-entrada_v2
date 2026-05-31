@@ -13,22 +13,24 @@ import csv
 from fpdf import FPDF
 
 # ---------------------------
-# Função para gerar PDF da tabela filtrada (formato otimizado para smartphone, sem cortes)
+# Função para gerar PDF sem cortes (formato otimizado para smartphone)
 # ---------------------------
 def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     """
-    Gera um arquivo PDF com formato otimizado para smartphones.
-    Largura da página aumentada para 100mm para evitar cortes.
+    Gera PDF com largura de página suficiente para não cortar dados.
+    Página: 130mm x 180mm, margens 10mm, área útil 110mm.
     """
     if df.empty:
         return None
 
-    # Tamanho personalizado: 100mm largura x 160mm altura (mais espaço)
-    LARGURA_PAGINA_MM = 100
-    ALTURA_PAGINA_MM = 160
+    LARGURA_PAGINA_MM = 130  # suficiente para 6 colunas
+    ALTURA_PAGINA_MM = 180
+    MARGEM = 10
 
     pdf = FPDF(orientation='P', unit='mm', format=(LARGURA_PAGINA_MM, ALTURA_PAGINA_MM))
-    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.set_auto_page_break(auto=True, margin=MARGEM)
+    pdf.set_left_margin(MARGEM)
+    pdf.set_right_margin(MARGEM)
     pdf.add_page()
 
     # Título
@@ -44,17 +46,14 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.ln(4)
 
     colunas = list(df.columns)
-    # Larguras das colunas em mm (total deve ser ≤ LARGURA_PAGINA_MM - 4 = 96mm)
+    # Larguras das colunas (soma = 110mm, cabem na área útil)
     if len(colunas) == 6:
         # registro, câmara, vaga, marca, descrição, validade
-        larguras = [20, 14, 14, 20, 20, 12]  # soma = 100? Ajustado para 100mm (sem margem extra)
-        # Como a margem é pequena, podemos usar exatamente 100mm, mas o FPDF aceita.
-        # Vamos redistribuir para caber melhor:
-        larguras = [19, 14, 14, 19, 20, 12]  # soma = 98mm (ok)
+        larguras = [18, 12, 12, 20, 36, 12]  # soma = 110
     elif len(colunas) == 4:
-        larguras = [25, 25, 28, 20]  # soma = 98mm
+        larguras = [25, 25, 35, 25]  # soma = 110
     else:
-        larguras = [22, 18, 18, 22, 18]  # fallback
+        larguras = [20, 15, 15, 30, 30]  # fallback
 
     # Cabeçalho
     pdf.set_font("Helvetica", "B", 9)
@@ -69,15 +68,14 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     pdf.set_font("Helvetica", "", 8)
     fill = False
     for idx, row in df.iterrows():
-        # Calcular altura da linha com base na quebra real de texto
+        # Calcular altura da linha baseada na quebra de texto real
         alturas_celulas = []
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
-            # Simula a quebra de linha no FPDF
-            linhas = 1
-            largura_max = larguras[i] - 2  # margem interna
             palavras = valor.split()
+            linhas = 1
             linha_atual = ""
+            largura_max = larguras[i] - 2  # margem interna
             for palavra in palavras:
                 teste = linha_atual + (" " if linha_atual else "") + palavra
                 if pdf.get_string_width(teste) <= largura_max:
@@ -86,10 +84,10 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                     linhas += 1
                     linha_atual = palavra
             alturas_celulas.append(linhas)
-        altura_linha = max(alturas_celulas) * 5  # 5mm por linha (um pouco mais folgado)
+        altura_linha = max(alturas_celulas) * 5  # 5mm por linha
 
         # Quebra de página
-        if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - 12:
+        if pdf.get_y() + altura_linha > ALTURA_PAGINA_MM - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 9)
             pdf.set_fill_color(80, 80, 80)
@@ -100,7 +98,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
             pdf.set_text_color(0, 0, 0)
             fill = False
 
-        # Desenhar células
+        # Desenhar linha de dados
         x_inicial = pdf.get_x()
         y_inicial = pdf.get_y()
         pdf.set_font("Helvetica", "", 8)
@@ -112,7 +110,6 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Usa multi_cell com altura 5mm
             pdf.multi_cell(larguras[i], 5, valor, border=1, align="L", fill=fill)
         pdf.set_y(y_inicial + altura_linha)
         pdf.set_x(x_inicial)
@@ -123,7 +120,7 @@ def gerar_pdf_tabela(df, titulo="Relatório de Paletes"):
     return buffer.getvalue()
 
 # ---------------------------
-# Componentes da UI (idênticos ao anterior, sem alterações)
+# Componentes da UI (sem alterações, apenas o botão de PDF)
 # ---------------------------
 def renderizar_secao_consulta(df_existente):
     """Renderiza a seção de consulta com botões para CSV e PDF."""
