@@ -11,11 +11,6 @@ from datetime import datetime
 
 def renderizar_secao_consulta(df_existente):
     """Renderiza a seção de consulta de registros existentes."""
-    st.checkbox("🔍 Consultar registros existentes", key="check_consulta")
-
-    if not st.session_state.check_consulta:
-        return False
-
     st.markdown("---")
 
     col_f1, col_f2 = st.columns(2)
@@ -88,13 +83,9 @@ def renderizar_secao_consulta(df_existente):
             st.info("Nenhum registro corresponde aos filtros.")
 
     st.markdown("---")
-    return True
 
 def renderizar_secao_cadastro(sheet, df_existente):
     """Renderiza a seção de cadastro de palete (câmara/vaga)."""
-    if st.session_state.check_consulta:
-        return
-
     st.markdown("## 📦 Cadastro de Palete")
 
     camara_opts = ["Selecione a câmara"] + config.CAMARAS
