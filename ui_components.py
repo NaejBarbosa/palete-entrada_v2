@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 
 def renderizar_secao_consulta(df_existente):
-    """Renderiza a seção de consulta de registros existentes com botão de download CSV formatado."""
+    """Renderiza a seção de consulta de registros existentes com botão de download CSV formatado para Excel Brasil."""
     st.markdown("---")
 
     col_f1, col_f2 = st.columns(2)
@@ -82,9 +82,11 @@ def renderizar_secao_consulta(df_existente):
         else:
             st.info("Nenhum registro corresponde aos filtros.")
 
-    # --- BOTÃO DE DOWNLOAD CSV (formatado) ---
+    # --- BOTÃO DE DOWNLOAD CSV (formatado para Excel Brasil) ---
     if not df_filtrado.empty:
-        # Cria uma cópia para não alterar o DataFrame original
+        import csv
+        from io import StringIO
+
         df_export = df_filtrado.copy()
 
         # Formata as colunas de data para o padrão brasileiro
@@ -95,11 +97,13 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = pd.to_datetime(df_export['validade'], errors='coerce')
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
 
-        # Converte para CSV (sem índice, com encoding UTF-8 com BOM para compatibilidade com Excel)
-        csv_data = df_export.to_csv(index=False, encoding='utf-8-sig')
+        # Converte para CSV com separador ';' e aspas nos campos necessários
+        output = StringIO()
+        df_export.to_csv(output, index=False, sep=';', encoding='utf-8-sig', quoting=csv.QUOTE_MINIMAL, quotechar='"')
+        csv_data = output.getvalue().encode('utf-8-sig')
 
         st.download_button(
-            label="📥 Baixar relatório (CSV)",
+            label="📥 Baixar relatório (CSV para Excel Brasil)",
             data=csv_data,
             file_name="relatorio_paletes.csv",
             mime="text/csv",
