@@ -28,7 +28,7 @@ st.markdown("""
     h1 {
         text-align: center;
         font-size: 2.8rem;   /* Altere o tamanho conforme desejar */
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
     }
     /* Centraliza e ajusta proporção do subtítulo (h2) */
     h2 {
