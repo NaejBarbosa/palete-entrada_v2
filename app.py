@@ -1,4 +1,4 @@
-# app.py - Abas centralizadas (funciona no mobile)
+# app.py - Abas centralizadas com fonte maior
 import streamlit as st
 import time
 
@@ -11,22 +11,18 @@ from ui_components import (
 )
 from utils import exibir_mensagem_centralizada, force_reset
 
-# Configuração da página
 st.set_page_config(page_title="Registro de Paletes", layout="centered")
 
-# Título principal
 st.title("❄️ Perecíveis | 410")
 
-# Descrição
 st.markdown(
     '<p class="descricao-app">Controle de paletes das câmaras frias/congeladas da loja 410 do Fort Atacadista.</p>',
     unsafe_allow_html=True
 )
 
-# CSS para centralizar as abas e ajustar título/descrição
+# CSS com fonte maior para as abas
 st.markdown("""
 <style>
-    /* Título e descrição */
     h1 {
         text-align: center;
         font-size: 2.8rem;
@@ -39,7 +35,7 @@ st.markdown("""
         color: #555;
     }
     
-    /* Centralizar as abas */
+    /* Centralizar abas */
     .stTabs [data-baseweb="tab-list"] {
         display: flex;
         justify-content: center;
@@ -47,19 +43,22 @@ st.markdown("""
         flex-wrap: wrap;
     }
     
-    /* Ajuste individual das abas (remover bordas extras) */
+    /* Aumentar fonte dos botões das abas */
     .stTabs [data-baseweb="tab"] {
         flex: 0 1 auto;
         white-space: nowrap;
+        font-size: 1.3rem;          /* Aumente ou diminua conforme desejar */
+        font-weight: 500;
+        padding: 0.5rem 0.8rem;
     }
     
-    /* Para mobile: manter alinhamento central e reduzir gap */
+    /* Ajuste fino para mobile */
     @media (max-width: 640px) {
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.8rem;
         }
         .stTabs [data-baseweb="tab"] {
-            font-size: 0.9rem;
+            font-size: 1.1rem;       /* Fonte um pouco menor no celular, ainda maior que o padrão */
         }
     }
 </style>
@@ -79,7 +78,6 @@ if 'exibir_gerenciamento' not in st.session_state:
 if 'reset_counter' not in st.session_state:
     st.session_state.reset_counter = 0
 
-# Conexão e dados
 sheet = conectar_planilha()
 df_existente = carregar_dados_existentes(sheet)
 
