@@ -5,7 +5,7 @@ import pandas as pd
 import config
 from data_access import combina_existe, carregar_dados_existentes, excluir_registros_vaga
 from utils import exibir_mensagem_centralizada, force_reset
-from pdf_generator import gerar_pdf_tabela   # <-- PDF movido para módulo separado
+from pdf_generator import gerar_pdf_tabela
 import time
 from datetime import datetime
 import io
@@ -95,19 +95,22 @@ def renderizar_secao_consulta(df_existente):
                 use_container_width=True
             )
         with col_botao2:
-            if st.button("Baixar PDF (smartphone)", use_container_width=True):
-                with st.spinner("Gerando PDF..."):
-                    pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatorio de Paletes - Pereciveis 410")
-                    if pdf_bytes:
-                        st.download_button(
-                            label="Salvar PDF",
-                            data=pdf_bytes,
-                            file_name="relatorio_paletes.pdf",
-                            mime="application/pdf",
-                            key="pdf_download_ready"
-                        )
-                    else:
-                        st.error("Erro ao gerar PDF. Tente novamente.")
+            # Download direto do PDF, sem botão intermediário
+            def gerar_pdf_bytes():
+                pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatorio de Paletes - Pereciveis 410")
+                if pdf_bytes is None:
+                    st.error("Erro ao gerar PDF. Tente novamente.")
+                    return b""
+                return pdf_bytes
+
+            st.download_button(
+                label="Baixar PDF",
+                data=gerar_pdf_bytes(),
+                file_name="relatorio_paletes.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="pdf_download_button"
+            )
     else:
         st.info("Nenhum dado para exportar.")
 
