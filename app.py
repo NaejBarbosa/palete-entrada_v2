@@ -108,12 +108,12 @@ with st.sidebar:
                 del st.session_state[key]
         st.rerun()
 
-# Abas centralizadas
-tab_cadastrar, tab_consultar = st.tabs(["📝 Cadastrar", "🔍 Consultar"])
+# Abas centralizadas (Consultar primeiro)
+tab_consultar, tab_cadastrar = st.tabs(["🔍 Consultar", "📝 Cadastrar"])
+
+with tab_consultar:
+    renderizar_secao_consulta(df_existente)
 
 with tab_cadastrar:
     renderizar_secao_cadastro(aba_inclusoes, aba_log, df_existente, client, st.session_state.usuario)
     renderizar_secao_produtos(aba_inclusoes, st.session_state.usuario)
-
-with tab_consultar:
-    renderizar_secao_consulta(df_existente)
