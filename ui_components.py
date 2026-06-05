@@ -1,4 +1,3 @@
-# ui_components.py
 import streamlit as st
 import pandas as pd
 import config
@@ -31,7 +30,7 @@ def renderizar_secao_consulta(df_existente):
             df_filtrado['produto-descricao'].str.lower().str.contains(texto, na=False)
         ]
 
-    # Exibição (oculta coluna 'usuario-inclusao')
+    # Exibição (oculta colunas 'id' e 'usuario-inclusao')
     colunas_exibir = ['registro', 'camara', 'camara-vaga', 'produto-marca', 'produto-descricao', 'validade']
     if filtro_camara != "Todas" and filtro_vaga != "Todas":
         st.write(f"**Registros encontrados para {filtro_camara} / {filtro_vaga}:**")
@@ -60,9 +59,13 @@ def renderizar_secao_consulta(df_existente):
         else:
             st.info("Nenhum registro corresponde aos filtros.")
 
-    # Exportação
+    # Exportação (remover colunas id e usuario)
     if not df_filtrado.empty:
         df_export = df_filtrado.copy()
+        # Remove colunas sensíveis/internas
+        for col in ['id', 'usuario-inclusao']:
+            if col in df_export.columns:
+                df_export = df_export.drop(columns=[col])
         if 'registro' in df_export.columns:
             df_export['registro'] = pd.to_datetime(df_export['registro'], errors='coerce')
             df_export['registro'] = df_export['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
@@ -71,9 +74,6 @@ def renderizar_secao_consulta(df_existente):
             df_export['validade'] = df_export['validade'].dt.strftime('%d/%m/%Y')
         if 'produto-descricao' in df_export.columns:
             df_export['produto-descricao'] = df_export['produto-descricao'].str.slice(0, 100)
-        # Remove a coluna de usuário da exportação (opcional)
-        if 'usuario-inclusao' in df_export.columns:
-            df_export = df_export.drop(columns=['usuario-inclusao'])
 
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
