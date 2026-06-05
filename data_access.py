@@ -95,34 +95,36 @@ def carregar_dados_existentes(aba_inclusoes):
 
     return df
 
-def obter_proximo_id(aba_inclusoes):
-    """Retorna o próximo ID sequencial baseado no maior valor existente na coluna A (id)."""
-    # Pega todos os valores da coluna A (índice 1)
-    ids = aba_inclusoes.col_values(1)[1:]  # pula cabeçalho
-    if not ids:
-        return 1
-    # Converte para inteiros, ignora não numéricos
-    ids_int = []
-    for val in ids:
+def obter_proximo_id_global(aba_inclusoes, aba_log):
+    """
+    Retorna o próximo ID sequencial baseado no maior valor existente
+    na coluna A (id) de ambas as abas: inclusoes e log_exclusoes.
+    """
+    max_id = 0
+
+    # Lê os IDs da aba de inclusões (coluna A, ignorando cabeçalho)
+    ids_inclusoes = aba_inclusoes.col_values(1)[1:]  # pula linha 1
+    for val in ids_inclusoes:
         try:
-            ids_int.append(int(float(val)))
+            max_id = max(max_id, int(float(val)))
         except (ValueError, TypeError):
             continue
-    if not ids_int:
-        return 1
-    return max(ids_int) + 1
 
-def combina_existe(camara, vaga, df_existente):
-    """Verifica se uma combinação câmara/vaga já está cadastrada."""
-    if df_existente.empty:
-        return False
-    return ((df_existente['camara'] == camara) & (df_existente['camara-vaga'] == vaga)).any()
+    # Lê os IDs da aba de log (coluna A, ignorando cabeçalho)
+    ids_log = aba_log.col_values(1)[1:]
+    for val in ids_log:
+        try:
+            max_id = max(max_id, int(float(val)))
+        except (ValueError, TypeError):
+            continue
 
-def salvar_registros(aba_inclusoes, registros, usuario):
-    """Insere registros na aba Inclusoes com ID, timestamp e usuário."""
+    return max_id + 1 if max_id > 0 else 1
+
+def salvar_registros(aba_inclusoes, aba_log, registros, usuario):
+    """Insere registros na aba Inclusoes com ID global (considerando log), timestamp e usuário."""
     tz = pytz.timezone('America/Sao_Paulo')
     for reg in registros:
-        proximo_id = obter_proximo_id(aba_inclusoes)
+        proximo_id = obter_proximo_id_global(aba_inclusoes, aba_log)
         timestamp = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
         aba_inclusoes.append_row([
             proximo_id,
@@ -134,6 +136,12 @@ def salvar_registros(aba_inclusoes, registros, usuario):
             reg['validade'],
             usuario
         ])
+
+def combina_existe(camara, vaga, df_existente):
+    """Verifica se uma combinação câmara/vaga já está cadastrada."""
+    if df_existente.empty:
+        return False
+    return ((df_existente['camara'] == camara) & (df_existente['camara-vaga'] == vaga)).any()
 
 def excluir_registros_vaga(aba_inclusoes, aba_log, camara, vaga, usuario):
     """

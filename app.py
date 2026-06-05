@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import time
 from data_access import conectar_planilha, carregar_dados_existentes
@@ -116,4 +115,4 @@ with tab_consultar:
 
 with tab_cadastrar:
     renderizar_secao_cadastro(aba_inclusoes, aba_log, df_existente, client, st.session_state.usuario)
-    renderizar_secao_produtos(aba_inclusoes, st.session_state.usuario)
+    renderizar_secao_produtos(aba_inclusoes, aba_log, st.session_state.usuario)

@@ -192,7 +192,7 @@ def _converter_edited_df(edited_df):
         p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
     return produtos
 
-def renderizar_secao_produtos(aba_inclusoes, usuario):
+def renderizar_secao_produtos(aba_inclusoes, aba_log, usuario):
     if not (not st.session_state.bloqueado and st.session_state.camara and st.session_state.vaga):
         if st.session_state.bloqueado and not st.session_state.exibir_gerenciamento:
             st.info("Altere a camara ou vaga para uma combinacao livre.")
@@ -252,7 +252,7 @@ def renderizar_secao_produtos(aba_inclusoes, usuario):
                     st.error(f"{msg}")
                 else:
                     st.session_state.produtos_temp = _converter_edited_df(edited_df)
-                    _finalizar_palete(aba_inclusoes, usuario)
+                    _finalizar_palete(aba_inclusoes, aba_log, usuario)
         with colC:
             if st.button("Cancelar palete", use_container_width=True):
                 st.session_state.produtos_temp = []
@@ -263,7 +263,7 @@ def renderizar_secao_produtos(aba_inclusoes, usuario):
     else:
         st.info("Nenhum produto adicionado ainda.")
 
-def _finalizar_palete(aba_inclusoes, usuario):
+def _finalizar_palete(aba_inclusoes, aba_log, usuario):
     registros_para_gravar = []
     for prod in st.session_state.produtos_temp:
         registros_para_gravar.append({
@@ -274,7 +274,7 @@ def _finalizar_palete(aba_inclusoes, usuario):
             "validade": prod["validade"]
         })
     try:
-        salvar_registros(aba_inclusoes, registros_para_gravar, usuario)
+        salvar_registros(aba_inclusoes, aba_log, registros_para_gravar, usuario)
         exibir_mensagem_centralizada(f"{len(registros_para_gravar)} produto(s) registrado(s) com sucesso!")
         time.sleep(3)
         st.session_state.produtos_temp = []
