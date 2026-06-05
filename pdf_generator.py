@@ -1,4 +1,3 @@
-# pdf_generator.py
 import io
 from datetime import datetime
 import pandas as pd
@@ -26,7 +25,12 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     """
     Gera um PDF com os dados do DataFrame.
     Retorna os bytes do PDF ou None se o DataFrame estiver vazio.
+    Remove automaticamente a coluna 'id' caso exista.
     """
+    # Remove a coluna 'id' se presente
+    if 'id' in df.columns:
+        df = df.drop(columns=['id'])
+    
     if df.empty:
         return None
 
