@@ -49,8 +49,9 @@ MARCA_OPCOES = [
 # ID da Planilha Google
 SHEET_ID = "1HoN-VLyO5y9wJ4NKdpz42-BljRzT4VeJVY-Wio4CO6g"
 
-# Colunas da aba "inclusoes" (com i minúsculo)
+# Colunas da aba "inclusoes" (com i minúsculo) - ID agora é a primeira
 COLUNAS_INCLUSOES = [
+    "id",
     "registro",
     "camara",
     "camara-vaga",
@@ -60,8 +61,9 @@ COLUNAS_INCLUSOES = [
     "usuario-inclusao"
 ]
 
-# Colunas da aba "log_exclusoes"
+# Colunas da aba "log_exclusoes" - também com ID no início
 COLUNAS_LOG_EXCLUSAO = [
+    "id",
     "data_hora_exclusao",
     "camara",
     "camara-vaga",
