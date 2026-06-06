@@ -93,6 +93,10 @@ def carregar_dados_existentes(aba_inclusoes):
         if df['validade'].dtype != 'datetime64[ns]':
             df['validade'] = pd.to_datetime(df['validade'], errors='coerce')
 
+    # Garantir que 'total-caixas' seja inteiro
+    if 'total-caixas' in df.columns:
+        df['total-caixas'] = pd.to_numeric(df['total-caixas'], errors='coerce').fillna(0).astype(int)
+
     return df
 
 def obter_proximo_id_global(aba_inclusoes, aba_log):
@@ -133,6 +137,7 @@ def salvar_registros(aba_inclusoes, aba_log, registros, usuario):
             reg['camara-vaga'],
             reg['produto-marca'],
             reg['produto-descricao'],
+            reg['total-caixas'],
             reg['validade'],
             usuario
         ])
@@ -156,7 +161,7 @@ def excluir_registros_vaga(aba_inclusoes, aba_log, camara, vaga, usuario):
 
     linhas_para_excluir = []  # (num_linha, dados_do_registro)
     for i, row in enumerate(all_values[1:], start=2):
-        # row[0]=id, [1]=registro, [2]=camara, [3]=vaga, [4]=marca, [5]=desc, [6]=validade, [7]=usuario_inclusao
+        # row[0]=id, [1]=registro, [2]=camara, [3]=vaga, [4]=marca, [5]=desc, [6]=caixas, [7]=validade, [8]=usuario_inclusao
         if len(row) >= 4 and row[2] == camara and row[3] == vaga:
             linhas_para_excluir.append((i, row))
 
@@ -175,7 +180,8 @@ def excluir_registros_vaga(aba_inclusoes, aba_log, camara, vaga, usuario):
             dados[3],          # vaga
             dados[4],          # marca
             dados[5],          # descricao
-            dados[6],          # validade
+            dados[6],          # total-caixas
+            dados[7],          # validade
             usuario
         ])
 
@@ -190,7 +196,7 @@ def excluir_registros_vaga(aba_inclusoes, aba_log, camara, vaga, usuario):
 def atualizar_registro(aba_inclusoes, id_registro, novos_dados, usuario):
     """
     Atualiza um registro existente na aba 'inclusoes' com base no ID.
-    novos_dados: dict com chaves 'produto-marca', 'produto-descricao', 'validade'
+    novos_dados: dict com chaves 'produto-marca', 'produto-descricao', 'total-caixas', 'validade'
     O campo 'registro' é atualizado para o timestamp atual.
     """
     tz = pytz.timezone('America/Sao_Paulo')
@@ -206,10 +212,11 @@ def atualizar_registro(aba_inclusoes, id_registro, novos_dados, usuario):
         raise ValueError(f"ID {id_registro} não encontrado na aba de inclusões")
     
     # Atualizar as células
-    # Mapeamento: coluna 5 = produto-marca, 6 = produto-descricao, 7 = validade, 2 = registro
+    # Mapeamento: col5=marca, col6=desc, col7=caixas, col8=validade, col2=registro
     aba_inclusoes.update_cell(linha_num, 5, novos_dados['produto-marca'])
     aba_inclusoes.update_cell(linha_num, 6, novos_dados['produto-descricao'])
-    aba_inclusoes.update_cell(linha_num, 7, novos_dados['validade'])
+    aba_inclusoes.update_cell(linha_num, 7, novos_dados['total-caixas'])
+    aba_inclusoes.update_cell(linha_num, 8, novos_dados['validade'])
     aba_inclusoes.update_cell(linha_num, 2, timestamp)  # atualiza registro
 
 def excluir_registros_por_ids(aba_inclusoes, aba_log, ids, usuario):
@@ -238,7 +245,7 @@ def excluir_registros_por_ids(aba_inclusoes, aba_log, ids, usuario):
     
     # Primeiro: gravar no log
     for _, dados in linhas_para_excluir:
-        # dados[0]=id, [1]=registro, [2]=camara, [3]=vaga, [4]=marca, [5]=desc, [6]=validade, [7]=usuario_inclusao
+        # dados[0]=id, [1]=registro, [2]=camara, [3]=vaga, [4]=marca, [5]=desc, [6]=caixas, [7]=validade, [8]=usuario_inclusao
         aba_log.append_row([
             dados[0],          # id
             data_hora_exclusao,
@@ -246,7 +253,8 @@ def excluir_registros_por_ids(aba_inclusoes, aba_log, ids, usuario):
             dados[3],          # vaga
             dados[4],          # marca
             dados[5],          # descricao
-            dados[6],          # validade
+            dados[6],          # total-caixas
+            dados[7],          # validade
             usuario
         ])
     

@@ -38,7 +38,7 @@ def renderizar_secao_consulta(df_existente):
         ]
 
     # Exibição (oculta colunas 'id' e 'usuario-inclusao')
-    colunas_exibir = ['registro', 'camara', 'camara-vaga', 'produto-marca', 'produto-descricao', 'validade']
+    colunas_exibir = ['registro', 'camara', 'camara-vaga', 'produto-marca', 'produto-descricao', 'total-caixas', 'validade']
     if filtro_camara != "Todas" and filtro_vaga != "Todas":
         st.write(f"**Registros encontrados para {filtro_camara} / {filtro_vaga}:**")
         if not df_filtrado.empty:
@@ -47,6 +47,7 @@ def renderizar_secao_consulta(df_existente):
                 use_container_width=True,
                 column_config={
                     "registro": st.column_config.DatetimeColumn("Registro", format="DD/MM/YYYY HH:mm:ss"),
+                    "total-caixas": st.column_config.NumberColumn("Caixas", min_value=1, max_value=100),
                     "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
                 }
             )
@@ -60,6 +61,7 @@ def renderizar_secao_consulta(df_existente):
                 use_container_width=True,
                 column_config={
                     "registro": st.column_config.DatetimeColumn("Registro", format="DD/MM/YYYY HH:mm:ss"),
+                    "total-caixas": st.column_config.NumberColumn("Caixas", min_value=1, max_value=100),
                     "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
                 }
             )
@@ -144,7 +146,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
         state_key = f"edit_df_{camara_selecionada}_{vaga_selecionada}"
         if state_key not in st.session_state:
             # Cria o DataFrame base com os registros existentes
-            df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'validade']].copy()
+            df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'total-caixas', 'validade']].copy()
             df_edit['registro'] = df_edit['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
             df_edit['validade'] = pd.to_datetime(df_edit['validade']).dt.date
             st.session_state[state_key] = df_edit
@@ -175,6 +177,13 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                 max_chars=100,
                 required=True
             ),
+            "total-caixas": st.column_config.NumberColumn(
+                "Caixas",
+                min_value=1,
+                max_value=100,
+                step=1,
+                required=True
+            ),
             "validade": st.column_config.DateColumn(
                 "Validade",
                 format="DD/MM/YYYY",
@@ -201,6 +210,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                     'registro': '',
                     'produto-marca': '',
                     'produto-descricao': '',
+                    'total-caixas': 1,
                     'validade': None
                 }])
                 df_edit = pd.concat([df_edit, nova_linha], ignore_index=True)
@@ -238,7 +248,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                 
                 # Validar e atualizar registros existentes (edição)
                 ids_alterados = []
-                df_original = df_vaga[['id', 'produto-marca', 'produto-descricao', 'validade']].copy()
+                df_original = df_vaga[['id', 'produto-marca', 'produto-descricao', 'total-caixas', 'validade']].copy()
                 if not df_original.empty:
                     df_original['validade'] = pd.to_datetime(df_original['validade']).dt.date
                 
@@ -248,6 +258,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                         orig = original.iloc[0]
                         if (orig['produto-marca'] != row['produto-marca'] or
                             orig['produto-descricao'] != row['produto-descricao'] or
+                            orig['total-caixas'] != row['total-caixas'] or
                             orig['validade'] != row['validade']):
                             ids_alterados.append(row['id'])
                 
@@ -257,6 +268,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                     if row['id'] in ids_alterados:
                         marca = str(row['produto-marca']).strip()
                         desc = str(row['produto-descricao']).strip()
+                        caixas = row['total-caixas']
                         val = row['validade']
                         if not marca:
                             st.error(f"ID {row['id']}: Marca não pode estar vazia.")
@@ -267,6 +279,9 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                         if len(desc) > 100:
                             st.error(f"ID {row['id']}: Descrição excede 100 caracteres.")
                             validacao_ok = False
+                        if caixas is None or caixas < 1 or caixas > 100:
+                            st.error(f"ID {row['id']}: Total de caixas deve ser um número entre 1 e 100.")
+                            validacao_ok = False
                         if val is None:
                             st.error(f"ID {row['id']}: Validade é obrigatória.")
                             validacao_ok = False
@@ -276,6 +291,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                 for _, row in df_novos.iterrows():
                     marca = str(row['produto-marca']).strip()
                     desc = str(row['produto-descricao']).strip()
+                    caixas = row['total-caixas']
                     val = row['validade']
                     if not marca:
                         st.error("Novo registro: Marca não pode estar vazia.")
@@ -286,6 +302,9 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                     elif len(desc) > 100:
                         st.error(f"Novo registro: Descrição excede 100 caracteres.")
                         validacao_ok = False
+                    elif caixas is None or caixas < 1 or caixas > 100:
+                        st.error("Novo registro: Total de caixas deve ser um número entre 1 e 100.")
+                        validacao_ok = False
                     elif val is None:
                         st.error("Novo registro: Validade é obrigatória.")
                         validacao_ok = False
@@ -293,6 +312,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                         novos_validos.append({
                             'produto-marca': marca,
                             'produto-descricao': desc,
+                            'total-caixas': int(caixas),
                             'validade': val.strftime("%d/%m/%Y")
                         })
                 
@@ -307,6 +327,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                                     {
                                         'produto-marca': row['produto-marca'],
                                         'produto-descricao': row['produto-descricao'],
+                                        'total-caixas': row['total-caixas'],
                                         'validade': row['validade'].strftime("%d/%m/%Y")
                                     },
                                     usuario
@@ -324,6 +345,7 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                                 "camara-vaga": vaga_selecionada,
                                 "produto-marca": prod['produto-marca'],
                                 "produto-descricao": prod['produto-descricao'],
+                                "total-caixas": prod['total-caixas'],
                                 "validade": prod['validade']
                             })
                         try:
@@ -372,6 +394,7 @@ def _validar_dataframe(df):
     for idx, row in df.iterrows():
         marca = str(row.get("produto-marca", "")).strip()
         descricao = str(row.get("produto-descricao", "")).strip()
+        caixas = row.get("total-caixas")
         validade = row.get("validade")
         if pd.isna(validade) or validade == "":
             return False, f"Linha {idx+1}: data de validade e obrigatoria."
@@ -381,6 +404,8 @@ def _validar_dataframe(df):
             return False, f"Linha {idx+1}: descricao e obrigatoria."
         if len(descricao) > 100:
             return False, f"Linha {idx+1}: a descricao nao pode ter mais de 100 caracteres (atualmente {len(descricao)})."
+        if caixas is None or not (1 <= caixas <= 100):
+            return False, f"Linha {idx+1}: total de caixas deve ser um número entre 1 e 100."
     return True, ""
 
 def _converter_edited_df(edited_df):
@@ -392,6 +417,8 @@ def _converter_edited_df(edited_df):
             p["validade"] = ""
         p["produto-marca"] = str(p.get("produto-marca", "")).strip()
         p["produto-descricao"] = str(p.get("produto-descricao", "")).strip()
+        if p.get("total-caixas") is not None:
+            p["total-caixas"] = int(p["total-caixas"])
     return produtos
 
 def renderizar_secao_produtos(aba_inclusoes, aba_log, usuario):
@@ -403,13 +430,15 @@ def renderizar_secao_produtos(aba_inclusoes, aba_log, usuario):
     st.subheader("Produtos no Palete")
     st.markdown("**Novo produto**")
     with st.form(key="produto_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             marca = st.selectbox("Produto / Marca", config.MARCA_OPCOES)
         with col2:
             descricao = st.text_input("Descricao do produto", max_chars=100, help="Maximo de 100 caracteres.")
             if descricao:
                 st.caption(f"{len(descricao)}/100 caracteres")
+        with col3:
+            caixas = st.number_input("Total de caixas", min_value=1, max_value=100, step=1, value=1)
         validade = st.date_input("Validade", value=None, format="DD/MM/YYYY")
         if st.form_submit_button("Adicionar"):
             if not marca.strip():
@@ -424,16 +453,18 @@ def renderizar_secao_produtos(aba_inclusoes, aba_log, usuario):
                 st.session_state.produtos_temp.append({
                     "produto-marca": marca,
                     "produto-descricao": descricao,
+                    "total-caixas": caixas,
                     "validade": validade.strftime("%d/%m/%Y")
                 })
                 st.rerun()
 
     if st.session_state.produtos_temp:
         df = pd.DataFrame(st.session_state.produtos_temp)
-        df = df[["produto-marca", "produto-descricao", "validade"]]
+        df = df[["produto-marca", "produto-descricao", "total-caixas", "validade"]]
         df["validade"] = pd.to_datetime(df["validade"], format="%d/%m/%Y", errors="coerce")
         column_config = {
             "produto-marca": st.column_config.SelectboxColumn("Marca", help="Selecione a marca do produto", width="medium", options=config.MARCA_OPCOES, required=True),
+            "total-caixas": st.column_config.NumberColumn("Caixas", min_value=1, max_value=100, step=1, required=True),
             "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY", required=True)
         }
         st.write("**Produtos neste palete:**")
@@ -473,6 +504,7 @@ def _finalizar_palete(aba_inclusoes, aba_log, usuario):
             "camara-vaga": st.session_state.vaga,
             "produto-marca": prod["produto-marca"],
             "produto-descricao": prod["produto-descricao"],
+            "total-caixas": prod["total-caixas"],
             "validade": prod["validade"]
         })
     try:

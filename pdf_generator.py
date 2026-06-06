@@ -4,7 +4,6 @@ import pandas as pd
 from fpdf import FPDF
 import pytz
 
-
 def quebrar_palavra(palavra, largura_max, pdf):
     """Divide uma palavra longa em partes que cabem na largura máxima."""
     pedacos = []
@@ -19,7 +18,6 @@ def quebrar_palavra(palavra, largura_max, pdf):
             pedacos.append(restante[0])
             restante = restante[1:]
     return pedacos
-
 
 def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     """
@@ -58,13 +56,16 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(4)
 
     colunas = list(df.columns)
-    if len(colunas) == 6:
-        # [registro, camara, camara-vaga, produto-marca, produto-descricao, validade]
+    # Definir larguras conforme o número de colunas
+    if len(colunas) == 7:
+        # registro, camara, camara-vaga, produto-marca, produto-descricao, total-caixas, validade
+        larguras = [20, 16, 20, 24, 34, 12, 16]
+    elif len(colunas) == 6:
         larguras = [22, 18, 22, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
     else:
-        larguras = [28, 24, 20, 36, 36]
+        larguras = [20, 18, 20, 28, 30, 12, 18]  # fallback para 7 colunas
 
     idx_descricao = -1
     if "produto-descricao" in colunas:
@@ -157,7 +158,6 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
             for j, linha in enumerate(linhas):
                 y_atual = y_texto + j * ALTURA_LINHA_TEXTO
                 pdf.set_xy(x_celula, y_atual)
-                # Usa cell com largura exata e sem borda, alinhado conforme necessário
                 pdf.cell(largura_util, ALTURA_LINHA_TEXTO, linha, 0, 0, align)
 
         pdf.set_xy(x0, y0 + altura_linha)

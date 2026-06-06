@@ -56,6 +56,7 @@ COLUNAS_INCLUSOES = [
     "camara-vaga",
     "produto-marca",
     "produto-descricao",
+    "total-caixas",
     "validade",
     "usuario-inclusao"
 ]
@@ -68,6 +69,7 @@ COLUNAS_LOG_EXCLUSAO = [
     "camara-vaga",
     "produto-marca",
     "produto-descricao",
+    "total-caixas",
     "validade",
     "usuario-exclusao"
 ]
