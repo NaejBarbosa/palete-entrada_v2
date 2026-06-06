@@ -145,19 +145,24 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
             return
         
         # Prepara as colunas para edição
-        # Mostramos as colunas: id (não editável), registro (não editável), produto-marca, produto-descricao, validade
-        # Adicionamos uma coluna de seleção para exclusão
         df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'validade']].copy()
         
-        # Converte datetime para objeto para evitar problemas com o editor
+        # Converte datetime para objeto
         df_edit['registro'] = df_edit['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
         df_edit['validade'] = pd.to_datetime(df_edit['validade']).dt.date
         
-        # Adiciona coluna de seleção (checkbox)
-        df_edit['Selecionar'] = False
+        # Adiciona coluna de seleção (checkbox) no início
+        # Inicializa o estado de seleção a partir da session_state ou padrão False
+        if f"selecao_{camara_selecionada}_{vaga_selecionada}" not in st.session_state:
+            st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [False] * len(df_edit)
+        
+        # Cria uma cópia com a coluna 'Selecionar' baseada no session_state
+        df_edit_com_selecao = df_edit.copy()
+        df_edit_com_selecao.insert(0, 'Selecionar', st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"])
         
         # Configuração das colunas do editor
         column_config = {
+            "Selecionar": st.column_config.CheckboxColumn("❌", help="Marque para excluir"),
             "id": st.column_config.NumberColumn("ID", disabled=True),
             "registro": st.column_config.TextColumn("Registro", disabled=True),
             "produto-marca": st.column_config.SelectboxColumn(
@@ -174,29 +179,48 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                 "Validade",
                 format="DD/MM/YYYY",
                 required=True
-            ),
-            "Selecionar": st.column_config.CheckboxColumn("Excluir?")
+            )
         }
         
+        # Checkbox "Selecionar todos" acima da tabela
+        col_select_all, col_clear_all = st.columns(2)
+        with col_select_all:
+            if st.button("☑️ Selecionar todos", use_container_width=True):
+                # Atualiza todas as seleções para True
+                st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [True] * len(df_edit)
+                st.rerun()
+        with col_clear_all:
+            if st.button("⬜ Limpar seleção", use_container_width=True):
+                st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [False] * len(df_edit)
+                st.rerun()
+        
         st.write("**Registros da vaga (edite os campos desejados e marque para excluir):**")
+        
+        # Data editor
         edited_df = st.data_editor(
-            df_edit,
+            df_edit_com_selecao,
             column_config=column_config,
-            num_rows="fixed",  # não permite adicionar/remover linhas pelo editor
+            num_rows="fixed",
             use_container_width=True,
             key=f"editor_vaga_{camara_selecionada}_{vaga_selecionada}"
         )
         
+        # Salvar o estado atual das seleções para a próxima renderização
+        # (quando o usuário marcar/desmarcar no editor, capturamos no final)
+        # Precisamos atualizar o session_state com os valores atuais do edited_df
+        if 'Selecionar' in edited_df.columns:
+            st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = edited_df['Selecionar'].tolist()
+        
         # Botões de ação
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
             if st.button("💾 Salvar edições", use_container_width=True):
-                # Verifica quais IDs foram alterados
+                # Verifica quais IDs foram alterados (comparando com o df_edit original)
                 ids_alterados = []
                 for idx, row_original in df_edit.iterrows():
-                    row_editado = edited_df.loc[idx]
-                    # Compara apenas os campos editáveis (ignora id, registro, Selecionar)
+                    # Encontra a linha correspondente no edited_df (sem a coluna 'Selecionar')
+                    row_editado = edited_df[edited_df['id'] == row_original['id']].iloc[0]
                     if (row_original['produto-marca'] != row_editado['produto-marca'] or
                         row_original['produto-descricao'] != row_editado['produto-descricao'] or
                         row_original['validade'] != row_editado['validade']):
@@ -244,11 +268,14 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                                     validacao_ok = False
                         if validacao_ok:
                             st.success(f"{len(ids_alterados)} registro(s) atualizado(s) com sucesso. O campo 'registro' foi atualizado para a data/hora atual.")
+                            # Limpa a seleção após salvar
+                            if f"selecao_{camara_selecionada}_{vaga_selecionada}" in st.session_state:
+                                del st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"]
                             time.sleep(1.5)
                             st.rerun()
         
         with col2:
-            # Excluir registros selecionados
+            # Excluir registros selecionados (marcados na coluna 'Selecionar')
             ids_para_excluir = edited_df[edited_df['Selecionar'] == True]['id'].tolist()
             if ids_para_excluir:
                 if st.button(f"🗑️ Excluir {len(ids_para_excluir)} selecionado(s)", type="primary", use_container_width=True):
@@ -256,28 +283,15 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
                         num = excluir_registros_por_ids(aba_inclusoes, aba_log, ids_para_excluir, usuario)
                         if num > 0:
                             exibir_mensagem_centralizada(f"{num} registro(s) excluído(s) com sucesso! Log gravado.")
+                            # Limpa a seleção após exclusão
+                            if f"selecao_{camara_selecionada}_{vaga_selecionada}" in st.session_state:
+                                del st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"]
                             time.sleep(2)
                             st.rerun()
                         else:
                             st.error("Nenhum registro foi excluído.")
             else:
                 st.button("🗑️ Excluir selecionados", disabled=True, use_container_width=True)
-        
-        with col3:
-            # Botão para excluir TODOS (mantém a funcionalidade original)
-            if st.button("⚠️ Excluir TODOS os registros desta vaga", use_container_width=True):
-                confirm = st.checkbox("Confirmar exclusão TOTAL de todos os registros desta vaga?")
-                if confirm:
-                    with st.spinner("Excluindo todos os registros..."):
-                        num = excluir_registros_vaga(aba_inclusoes, aba_log, camara_selecionada, vaga_selecionada, usuario)
-                        if num > 0:
-                            exibir_mensagem_centralizada(f"{num} registro(s) excluído(s) totalmente! Log gravado.")
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("Nenhum registro excluído.")
-                else:
-                    st.warning("Marque a confirmação para prosseguir com a exclusão total.")
 
 def _validar_dataframe(df):
     for idx, row in df.iterrows():
