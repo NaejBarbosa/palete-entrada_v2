@@ -1,4 +1,3 @@
-# utils.py
 # Funções utilitárias (exibição de mensagens, reset, etc.)
 
 import streamlit as st

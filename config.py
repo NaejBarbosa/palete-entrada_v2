@@ -1,4 +1,3 @@
-# config.py
 # Arquivo de configuração centralizada
 
 # Configurações de Câmaras

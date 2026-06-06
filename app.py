@@ -1,3 +1,11 @@
+#requirements.txt
+#streamlit
+#gspread
+#pandas
+#oauth2client
+#pytz
+#fpdf2
+
 import streamlit as st
 import time
 from data_access import conectar_planilha, carregar_dados_existentes

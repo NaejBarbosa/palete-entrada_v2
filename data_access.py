@@ -184,3 +184,74 @@ def excluir_registros_vaga(aba_inclusoes, aba_log, camara, vaga, usuario):
         aba_inclusoes.delete_rows(linha_num)
 
     return len(linhas_para_excluir)
+
+# ==================== NOVAS FUNÇÕES PARA EDIÇÃO/EXCLUSÃO SELETIVA ====================
+
+def atualizar_registro(aba_inclusoes, id_registro, novos_dados, usuario):
+    """
+    Atualiza um registro existente na aba 'inclusoes' com base no ID.
+    novos_dados: dict com chaves 'produto-marca', 'produto-descricao', 'validade'
+    O campo 'registro' é atualizado para o timestamp atual.
+    """
+    tz = pytz.timezone('America/Sao_Paulo')
+    timestamp = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
+    
+    # Localizar a linha que contém o ID
+    coluna_ids = aba_inclusoes.col_values(1)  # coluna A
+    for idx, val in enumerate(coluna_ids, start=1):
+        if str(val).strip() == str(id_registro):
+            linha_num = idx
+            break
+    else:
+        raise ValueError(f"ID {id_registro} não encontrado na aba de inclusões")
+    
+    # Atualizar as células
+    # Mapeamento: coluna 5 = produto-marca, 6 = produto-descricao, 7 = validade, 2 = registro
+    aba_inclusoes.update_cell(linha_num, 5, novos_dados['produto-marca'])
+    aba_inclusoes.update_cell(linha_num, 6, novos_dados['produto-descricao'])
+    aba_inclusoes.update_cell(linha_num, 7, novos_dados['validade'])
+    aba_inclusoes.update_cell(linha_num, 2, timestamp)  # atualiza registro
+
+def excluir_registros_por_ids(aba_inclusoes, aba_log, ids, usuario):
+    """
+    Exclui uma lista de IDs da aba 'inclusoes', movendo cada um para o log.
+    Retorna o número de registros efetivamente excluídos.
+    """
+    if not ids:
+        return 0
+    
+    tz = pytz.timezone('America/Sao_Paulo')
+    data_hora_exclusao = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
+    
+    # Buscar todas as linhas com seus IDs
+    all_values = aba_inclusoes.get_all_values()
+    if not all_values:
+        return 0
+    
+    linhas_para_excluir = []  # (linha_num, dados)
+    for i, row in enumerate(all_values[1:], start=2):
+        if len(row) >= 1 and row[0].strip() in [str(id_) for id_ in ids]:
+            linhas_para_excluir.append((i, row))
+    
+    if not linhas_para_excluir:
+        return 0
+    
+    # Primeiro: gravar no log
+    for _, dados in linhas_para_excluir:
+        # dados[0]=id, [1]=registro, [2]=camara, [3]=vaga, [4]=marca, [5]=desc, [6]=validade, [7]=usuario_inclusao
+        aba_log.append_row([
+            dados[0],          # id
+            data_hora_exclusao,
+            dados[2],          # camara
+            dados[3],          # vaga
+            dados[4],          # marca
+            dados[5],          # descricao
+            dados[6],          # validade
+            usuario
+        ])
+    
+    # Depois: excluir as linhas (do maior número para o menor)
+    for linha_num, _ in sorted(linhas_para_excluir, key=lambda x: x[0], reverse=True):
+        aba_inclusoes.delete_rows(linha_num)
+    
+    return len(linhas_para_excluir)

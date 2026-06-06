@@ -1,7 +1,14 @@
 import streamlit as st
 import pandas as pd
 import config
-from data_access import combina_existe, carregar_dados_existentes, excluir_registros_vaga, salvar_registros
+from data_access import (
+    combina_existe,
+    carregar_dados_existentes,
+    excluir_registros_vaga,
+    salvar_registros,
+    atualizar_registro,
+    excluir_registros_por_ids
+)
 from utils import exibir_mensagem_centralizada, force_reset
 from pdf_generator import gerar_pdf_tabela
 import time
@@ -127,44 +134,150 @@ def renderizar_secao_cadastro(aba_inclusoes, aba_log, df_existente, client, usua
 
 def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_selecionada, vaga_selecionada, usuario):
     with st.expander("Gerenciar vaga ocupada", expanded=True):
-        df_filtrado = df_existente[
+        # Filtra apenas os registros da vaga atual
+        df_vaga = df_existente[
             (df_existente['camara'] == camara_selecionada) &
             (df_existente['camara-vaga'] == vaga_selecionada)
-        ]
-        st.write(f"**Registros encontrados para {camara_selecionada} / {vaga_selecionada}:**")
-        if not df_filtrado.empty:
-            colunas_exibir = ['registro', 'produto-marca', 'produto-descricao', 'validade']
-            st.dataframe(
-                df_filtrado[colunas_exibir],
-                use_container_width=True,
-                column_config={
-                    "registro": st.column_config.DatetimeColumn("Registro", format="DD/MM/YYYY HH:mm:ss"),
-                    "validade": st.column_config.DateColumn("Validade", format="DD/MM/YYYY")
-                }
-            )
-        else:
-            st.info("Nenhum registro detalhado encontrado.")
-        st.divider()
-        st.warning("**Acao irreversivel:** Excluir todos os registros desta vaga.")
-        col_confirm1, col_confirm2 = st.columns(2)
-        with col_confirm1:
-            confirmar_exclusao = st.checkbox("Confirmar exclusao de todos os registros desta vaga")
-        with col_confirm2:
-            if st.button("Excluir todos os registros", type="primary", disabled=not confirmar_exclusao):
-                with st.spinner("Excluindo registros e gravando log..."):
-                    num_excluidos = excluir_registros_vaga(aba_inclusoes, aba_log, camara_selecionada, vaga_selecionada, usuario)
-                    if num_excluidos > 0:
-                        exibir_mensagem_centralizada(f"{num_excluidos} registro(s) excluído(s) com sucesso! Log gravado.", quebrar_linha=True)
-                        time.sleep(3)
-                        st.session_state.bloqueado = False
-                        st.session_state.camara = camara_selecionada
-                        st.session_state.vaga = vaga_selecionada
-                        st.session_state.exibir_gerenciamento = False
-                        st.session_state.produtos_temp = []
-                        force_reset()
-                    else:
-                        st.error("Nenhum registro foi excluido. Verifique se a combinacao realmente existe.")
-        st.info("Apos excluir, a vaga ficara livre para novo cadastro.")
+        ].copy()
+        
+        if df_vaga.empty:
+            st.info("Nenhum registro encontrado para esta combinação.")
+            return
+        
+        # Prepara as colunas para edição
+        # Mostramos as colunas: id (não editável), registro (não editável), produto-marca, produto-descricao, validade
+        # Adicionamos uma coluna de seleção para exclusão
+        df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'validade']].copy()
+        
+        # Converte datetime para objeto para evitar problemas com o editor
+        df_edit['registro'] = df_edit['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
+        df_edit['validade'] = pd.to_datetime(df_edit['validade']).dt.date
+        
+        # Adiciona coluna de seleção (checkbox)
+        df_edit['Selecionar'] = False
+        
+        # Configuração das colunas do editor
+        column_config = {
+            "id": st.column_config.NumberColumn("ID", disabled=True),
+            "registro": st.column_config.TextColumn("Registro", disabled=True),
+            "produto-marca": st.column_config.SelectboxColumn(
+                "Marca",
+                options=config.MARCA_OPCOES,
+                required=True
+            ),
+            "produto-descricao": st.column_config.TextColumn(
+                "Descrição",
+                max_chars=100,
+                required=True
+            ),
+            "validade": st.column_config.DateColumn(
+                "Validade",
+                format="DD/MM/YYYY",
+                required=True
+            ),
+            "Selecionar": st.column_config.CheckboxColumn("Excluir?")
+        }
+        
+        st.write("**Registros da vaga (edite os campos desejados e marque para excluir):**")
+        edited_df = st.data_editor(
+            df_edit,
+            column_config=column_config,
+            num_rows="fixed",  # não permite adicionar/remover linhas pelo editor
+            use_container_width=True,
+            key=f"editor_vaga_{camara_selecionada}_{vaga_selecionada}"
+        )
+        
+        # Botões de ação
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("💾 Salvar edições", use_container_width=True):
+                # Verifica quais IDs foram alterados
+                ids_alterados = []
+                for idx, row_original in df_edit.iterrows():
+                    row_editado = edited_df.loc[idx]
+                    # Compara apenas os campos editáveis (ignora id, registro, Selecionar)
+                    if (row_original['produto-marca'] != row_editado['produto-marca'] or
+                        row_original['produto-descricao'] != row_editado['produto-descricao'] or
+                        row_original['validade'] != row_editado['validade']):
+                        ids_alterados.append(row_original['id'])
+                
+                if not ids_alterados:
+                    st.info("Nenhuma alteração detectada.")
+                else:
+                    # Valida os dados alterados
+                    validacao_ok = True
+                    for idx, row in edited_df.iterrows():
+                        if row['id'] in ids_alterados:
+                            marca = str(row['produto-marca']).strip()
+                            desc = str(row['produto-descricao']).strip()
+                            val = row['validade']
+                            if not marca:
+                                st.error(f"ID {row['id']}: Marca não pode estar vazia.")
+                                validacao_ok = False
+                            if not desc:
+                                st.error(f"ID {row['id']}: Descrição não pode estar vazia.")
+                                validacao_ok = False
+                            if len(desc) > 100:
+                                st.error(f"ID {row['id']}: Descrição excede 100 caracteres.")
+                                validacao_ok = False
+                            if val is None:
+                                st.error(f"ID {row['id']}: Validade é obrigatória.")
+                                validacao_ok = False
+                    if validacao_ok:
+                        # Aplica as atualizações
+                        for idx, row in edited_df.iterrows():
+                            if row['id'] in ids_alterados:
+                                try:
+                                    atualizar_registro(
+                                        aba_inclusoes,
+                                        row['id'],
+                                        {
+                                            'produto-marca': row['produto-marca'],
+                                            'produto-descricao': row['produto-descricao'],
+                                            'validade': row['validade'].strftime("%d/%m/%Y")
+                                        },
+                                        usuario
+                                    )
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar ID {row['id']}: {e}")
+                                    validacao_ok = False
+                        if validacao_ok:
+                            st.success(f"{len(ids_alterados)} registro(s) atualizado(s) com sucesso. O campo 'registro' foi atualizado para a data/hora atual.")
+                            time.sleep(1.5)
+                            st.rerun()
+        
+        with col2:
+            # Excluir registros selecionados
+            ids_para_excluir = edited_df[edited_df['Selecionar'] == True]['id'].tolist()
+            if ids_para_excluir:
+                if st.button(f"🗑️ Excluir {len(ids_para_excluir)} selecionado(s)", type="primary", use_container_width=True):
+                    with st.spinner("Excluindo registros e gravando log..."):
+                        num = excluir_registros_por_ids(aba_inclusoes, aba_log, ids_para_excluir, usuario)
+                        if num > 0:
+                            exibir_mensagem_centralizada(f"{num} registro(s) excluído(s) com sucesso! Log gravado.")
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("Nenhum registro foi excluído.")
+            else:
+                st.button("🗑️ Excluir selecionados", disabled=True, use_container_width=True)
+        
+        with col3:
+            # Botão para excluir TODOS (mantém a funcionalidade original)
+            if st.button("⚠️ Excluir TODOS os registros desta vaga", use_container_width=True):
+                confirm = st.checkbox("Confirmar exclusão TOTAL de todos os registros desta vaga?")
+                if confirm:
+                    with st.spinner("Excluindo todos os registros..."):
+                        num = excluir_registros_vaga(aba_inclusoes, aba_log, camara_selecionada, vaga_selecionada, usuario)
+                        if num > 0:
+                            exibir_mensagem_centralizada(f"{num} registro(s) excluído(s) totalmente! Log gravado.")
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("Nenhum registro excluído.")
+                else:
+                    st.warning("Marque a confirmação para prosseguir com a exclusão total.")
 
 def _validar_dataframe(df):
     for idx, row in df.iterrows():
