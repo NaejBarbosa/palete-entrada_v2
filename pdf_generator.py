@@ -56,16 +56,16 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.ln(4)
 
     colunas = list(df.columns)
-    # Definir larguras conforme o número de colunas
+    # Definir larguras conforme o número de colunas (valores em mm)
     if len(colunas) == 7:
-        # registro, camara, camara-vaga, produto-marca, produto-descricao, total-caixas, validade
-        larguras = [20, 16, 20, 24, 34, 12, 16]
+        # ordem esperada: registro, camara, camara-vaga, produto-marca, produto-descricao, total-caixas, validade
+        larguras = [18, 16, 20, 26, 34, 16, 20]  # total 150mm
     elif len(colunas) == 6:
         larguras = [22, 18, 22, 26, 38, 18]
     elif len(colunas) == 4:
         larguras = [34, 32, 42, 36]
     else:
-        larguras = [20, 18, 20, 28, 30, 12, 18]  # fallback para 7 colunas
+        larguras = [18, 16, 20, 26, 34, 16, 20]  # fallback para 7 colunas
 
     idx_descricao = -1
     if "produto-descricao" in colunas:
@@ -87,7 +87,13 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
         for i, col in enumerate(colunas):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             largura_util = larguras[i] - 2 * MARGEM_INTERNA
-            palavras = valor.split()
+            
+            # Se o valor for uma data (formato DD/MM/AAAA), trata como palavra única
+            if col == "validade" and "/" in valor and len(valor) == 10:
+                palavras = [valor]  # impede quebra interna
+            else:
+                palavras = valor.split()
+            
             linhas = []
             linha_atual = ""
             for palavra in palavras:
