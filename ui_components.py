@@ -87,7 +87,11 @@ def renderizar_secao_consulta(df_existente):
         col_botao1, col_botao2 = st.columns(2)
         with col_botao1:
             def gerar_pdf_bytes():
-                pdf_bytes = gerar_pdf_tabela(df_export, titulo="Relatorio de Paletes - Pereciveis 410")
+                pdf_bytes = gerar_pdf_tabela(
+                    df_export,
+                    titulo="Relatorio de Paletes - Pereciveis 410",
+                    usuario=st.session_state.usuario   # <--- PASSANDO O USUÁRIO
+                )
                 if pdf_bytes is None:
                     st.error("Erro ao gerar PDF. Tente novamente.")
                     return b""

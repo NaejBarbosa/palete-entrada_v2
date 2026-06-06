@@ -19,7 +19,7 @@ def quebrar_palavra(palavra, largura_max, pdf):
             restante = restante[1:]
     return pedacos
 
-def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
+def gerar_pdf_tabela(df, titulo="Relatorio de Paletes", usuario="desconhecido"):
     """
     Gera um PDF com os dados do DataFrame.
     Retorna os bytes do PDF ou None se o DataFrame estiver vazio.
@@ -32,11 +32,29 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     if df.empty:
         return None
 
-    LARGURA_PAGINA = 160
-    ALTURA_PAGINA = 220
-    MARGEM = 8
-    ALTURA_LINHA_TEXTO = 4
-    MARGEM_INTERNA = 2
+    LARGURA_PAGINA = 160   # mm
+    ALTURA_PAGINA = 220    # mm
+    MARGEM = 8             # mm
+    ALTURA_LINHA_TEXTO = 4 # mm
+    MARGEM_INTERNA = 2     # mm
+
+    # Definição das larguras das colunas (total deve caber dentro da área útil: 160 - 2*8 = 144 mm)
+    colunas = list(df.columns)
+    if len(colunas) == 7:
+        # ordem esperada: registro, camara, camara-vaga, produto-marca, produto-descricao, total-caixas, validade
+        larguras = [18, 16, 18, 24, 30, 16, 18]   # soma = 140 mm (folga de 4 mm)
+    elif len(colunas) == 6:
+        larguras = [22, 18, 22, 26, 38, 18]       # soma = 144 mm
+    elif len(colunas) == 4:
+        larguras = [34, 32, 42, 36]               # soma = 144 mm
+    else:
+        larguras = [18, 16, 18, 24, 30, 16, 18]   # fallback para 7 colunas
+
+    largura_total_tabela = sum(larguras)
+
+    # Calcula a posição X inicial para centralizar a tabela dentro da área útil
+    area_util_largura = LARGURA_PAGINA - 2 * MARGEM
+    x0_central = MARGEM + (area_util_largura - largura_total_tabela) / 2
 
     pdf = FPDF('P', 'mm', (LARGURA_PAGINA, ALTURA_PAGINA))
     pdf.set_auto_page_break(True, MARGEM)
@@ -44,36 +62,29 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
     pdf.set_right_margin(MARGEM)
     pdf.add_page()
 
+    # Título
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 8, titulo, ln=1, align="C")
     pdf.ln(3)
 
+    # Informações de rodapé/cabeçalho
     pdf.set_font("Helvetica", "", 8)
     tz = pytz.timezone('America/Sao_Paulo')
     data_geracao = datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Gerado: {data_geracao}", ln=1, align="R")
+    pdf.cell(0, 5, f"Usuário: {usuario}", ln=1, align="R")
     pdf.cell(0, 5, f"Total: {len(df)} registros", ln=1, align="R")
     pdf.ln(4)
-
-    colunas = list(df.columns)
-    # Definir larguras conforme o número de colunas (valores em mm)
-    if len(colunas) == 7:
-        # ordem esperada: registro, camara, camara-vaga, produto-marca, produto-descricao, total-caixas, validade
-        larguras = [18, 16, 20, 26, 34, 16, 20]  # total 150mm
-    elif len(colunas) == 6:
-        larguras = [22, 18, 22, 26, 38, 18]
-    elif len(colunas) == 4:
-        larguras = [34, 32, 42, 36]
-    else:
-        larguras = [18, 16, 20, 26, 34, 16, 20]  # fallback para 7 colunas
 
     idx_descricao = -1
     if "produto-descricao" in colunas:
         idx_descricao = colunas.index("produto-descricao")
 
+    # Cabeçalho da tabela (posicionado em x0_central)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(80, 80, 80)
     pdf.set_text_color(255, 255, 255)
+    pdf.set_x(x0_central)
     for i, col in enumerate(colunas):
         pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
     pdf.ln()
@@ -88,9 +99,9 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
             valor = str(row[col]) if pd.notna(row[col]) else ""
             largura_util = larguras[i] - 2 * MARGEM_INTERNA
             
-            # Se o valor for uma data (formato DD/MM/AAAA), trata como palavra única
+            # Impede quebra de data dentro do campo validade
             if col == "validade" and "/" in valor and len(valor) == 10:
-                palavras = [valor]  # impede quebra interna
+                palavras = [valor]
             else:
                 palavras = valor.split()
             
@@ -126,11 +137,13 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
         altura_texto = max_linhas * ALTURA_LINHA_TEXTO
         altura_linha = altura_texto + 2 * MARGEM_INTERNA
 
+        # Verifica se precisa de nova página
         if pdf.get_y() + altura_linha > ALTURA_PAGINA - MARGEM:
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 8)
             pdf.set_fill_color(80, 80, 80)
             pdf.set_text_color(255, 255, 255)
+            pdf.set_x(x0_central)
             for i, col in enumerate(colunas):
                 pdf.cell(larguras[i], 6, col, 1, 0, "C", 1)
             pdf.ln()
@@ -138,25 +151,24 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
             pdf.set_font("Helvetica", "", 7)
             zebra = False
 
-        x0 = pdf.get_x()
-        y0 = pdf.get_y()
-
-        # Desenha fundo da linha inteira (todas as células)
+        # Desenha a linha inteira (fundo) a partir de x0_central
+        x0_atual = x0_central
+        y0_atual = pdf.get_y()
         for i, largura in enumerate(larguras):
-            pdf.set_xy(x0 + sum(larguras[:i]), y0)
+            pdf.set_xy(x0_atual + sum(larguras[:i]), y0_atual)
             if zebra:
                 pdf.set_fill_color(230, 230, 230)
             else:
                 pdf.set_fill_color(255, 255, 255)
             pdf.rect(pdf.get_x(), pdf.get_y(), largura, altura_linha, 'DF')
 
-        # Agora desenha o texto célula por célula
+        # Desenha o texto célula por célula
         for i, (largura, linhas) in enumerate(zip(larguras, textos_quebrados)):
             largura_util = largura - 2 * MARGEM_INTERNA
             altura_texto_util = len(linhas) * ALTURA_LINHA_TEXTO
             offset_y = (altura_linha - 2 * MARGEM_INTERNA - altura_texto_util) / 2.0
-            x_celula = x0 + sum(larguras[:i]) + MARGEM_INTERNA
-            y_texto = y0 + MARGEM_INTERNA + offset_y
+            x_celula = x0_atual + sum(larguras[:i]) + MARGEM_INTERNA
+            y_texto = y0_atual + MARGEM_INTERNA + offset_y
 
             eh_descricao = (i == idx_descricao)
             align = "L" if eh_descricao else "C"
@@ -166,7 +178,7 @@ def gerar_pdf_tabela(df, titulo="Relatorio de Paletes"):
                 pdf.set_xy(x_celula, y_atual)
                 pdf.cell(largura_util, ALTURA_LINHA_TEXTO, linha, 0, 0, align)
 
-        pdf.set_xy(x0, y0 + altura_linha)
+        pdf.set_xy(x0_atual, y0_atual + altura_linha)
         zebra = not zebra
 
     buffer = io.BytesIO()
