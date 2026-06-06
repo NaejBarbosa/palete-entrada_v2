@@ -140,25 +140,25 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
             (df_existente['camara-vaga'] == vaga_selecionada)
         ].copy()
         
-        if df_vaga.empty:
-            st.info("Nenhum registro encontrado para esta combinação.")
-            return
+        # Carregar ou inicializar o estado do DataFrame de edição (incluindo novas linhas)
+        state_key = f"edit_df_{camara_selecionada}_{vaga_selecionada}"
+        if state_key not in st.session_state:
+            # Cria o DataFrame base com os registros existentes
+            df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'validade']].copy()
+            df_edit['registro'] = df_edit['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            df_edit['validade'] = pd.to_datetime(df_edit['validade']).dt.date
+            st.session_state[state_key] = df_edit
+        else:
+            df_edit = st.session_state[state_key]
         
-        # Prepara as colunas para edição
-        df_edit = df_vaga[['id', 'registro', 'produto-marca', 'produto-descricao', 'validade']].copy()
+        # Adicionar coluna de seleção (checkbox) no início
+        if "selecao" not in st.session_state:
+            st.session_state.selecao = {state_key: [False] * len(df_edit)}
+        if state_key not in st.session_state.selecao:
+            st.session_state.selecao[state_key] = [False] * len(df_edit)
         
-        # Converte datetime para objeto
-        df_edit['registro'] = df_edit['registro'].dt.strftime('%d/%m/%Y %H:%M:%S')
-        df_edit['validade'] = pd.to_datetime(df_edit['validade']).dt.date
-        
-        # Adiciona coluna de seleção (checkbox) no início
-        # Inicializa o estado de seleção a partir da session_state ou padrão False
-        if f"selecao_{camara_selecionada}_{vaga_selecionada}" not in st.session_state:
-            st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [False] * len(df_edit)
-        
-        # Cria uma cópia com a coluna 'Selecionar' baseada no session_state
         df_edit_com_selecao = df_edit.copy()
-        df_edit_com_selecao.insert(0, 'Selecionar', st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"])
+        df_edit_com_selecao.insert(0, 'Selecionar', st.session_state.selecao[state_key])
         
         # Configuração das colunas do editor
         column_config = {
@@ -182,19 +182,33 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
             )
         }
         
-        # Checkbox "Selecionar todos" acima da tabela
-        col_select_all, col_clear_all = st.columns(2)
-        with col_select_all:
+        # Botões: Selecionar todos, Limpar seleção, Adicionar produto
+        col1, col2, col3 = st.columns(3)
+        with col1:
             if st.button("☑️ Selecionar todos", use_container_width=True):
-                # Atualiza todas as seleções para True
-                st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [True] * len(df_edit)
+                st.session_state.selecao[state_key] = [True] * len(df_edit)
                 st.rerun()
-        with col_clear_all:
+        with col2:
             if st.button("⬜ Limpar seleção", use_container_width=True):
-                st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = [False] * len(df_edit)
+                st.session_state.selecao[state_key] = [False] * len(df_edit)
+                st.rerun()
+        with col3:
+            if st.button("➕ Adicionar produto", use_container_width=True):
+                # Cria nova linha com ID temporário negativo, registro vazio, campos em branco
+                novo_id = -len(df_edit) - 1  # ID temporário único negativo
+                nova_linha = pd.DataFrame([{
+                    'id': novo_id,
+                    'registro': '',
+                    'produto-marca': '',
+                    'produto-descricao': '',
+                    'validade': None
+                }])
+                df_edit = pd.concat([df_edit, nova_linha], ignore_index=True)
+                st.session_state[state_key] = df_edit
+                st.session_state.selecao[state_key] = st.session_state.selecao[state_key] + [False]
                 st.rerun()
         
-        st.write("**Registros da vaga (edite os campos desejados e marque para excluir):**")
+        st.write("**Registros da vaga (edite os campos desejados, marque para excluir ou adicione novos):**")
         
         # Data editor
         edited_df = st.data_editor(
@@ -205,87 +219,148 @@ def _renderizar_gerenciamento_vaga(aba_inclusoes, aba_log, df_existente, camara_
             key=f"editor_vaga_{camara_selecionada}_{vaga_selecionada}"
         )
         
-        # Salvar o estado atual das seleções para a próxima renderização
-        # (quando o usuário marcar/desmarcar no editor, capturamos no final)
-        # Precisamos atualizar o session_state com os valores atuais do edited_df
+        # Atualizar session_state com os dados editados (sem a coluna de seleção)
         if 'Selecionar' in edited_df.columns:
-            st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"] = edited_df['Selecionar'].tolist()
+            st.session_state.selecao[state_key] = edited_df['Selecionar'].tolist()
+            edited_df_sem_selecao = edited_df.drop(columns=['Selecionar'])
+            # Preservar o DataFrame editado (com IDs originais e novos)
+            st.session_state[state_key] = edited_df_sem_selecao
         
-        # Botões de ação
-        col1, col2 = st.columns(2)
+        # Botões de ação: Salvar edições e Excluir selecionados
+        col_salvar, col_excluir = st.columns(2)
         
-        with col1:
-            if st.button("💾 Salvar edições", use_container_width=True):
-                # Verifica quais IDs foram alterados (comparando com o df_edit original)
-                ids_alterados = []
-                for idx, row_original in df_edit.iterrows():
-                    # Encontra a linha correspondente no edited_df (sem a coluna 'Selecionar')
-                    row_editado = edited_df[edited_df['id'] == row_original['id']].iloc[0]
-                    if (row_original['produto-marca'] != row_editado['produto-marca'] or
-                        row_original['produto-descricao'] != row_editado['produto-descricao'] or
-                        row_original['validade'] != row_editado['validade']):
-                        ids_alterados.append(row_original['id'])
+        with col_salvar:
+            if st.button("💾 Salvar edições e novos produtos", use_container_width=True):
+                # Separar registros existentes (ID > 0) dos novos (ID <= 0)
+                df_atual = st.session_state[state_key].copy()
+                df_existentes = df_atual[df_atual['id'] > 0].copy()
+                df_novos = df_atual[df_atual['id'] <= 0].copy()
                 
-                if not ids_alterados:
-                    st.info("Nenhuma alteração detectada.")
-                else:
-                    # Valida os dados alterados
-                    validacao_ok = True
-                    for idx, row in edited_df.iterrows():
+                # Validar e atualizar registros existentes (edição)
+                ids_alterados = []
+                df_original = df_vaga[['id', 'produto-marca', 'produto-descricao', 'validade']].copy()
+                if not df_original.empty:
+                    df_original['validade'] = pd.to_datetime(df_original['validade']).dt.date
+                
+                for idx, row in df_existentes.iterrows():
+                    original = df_original[df_original['id'] == row['id']]
+                    if not original.empty:
+                        orig = original.iloc[0]
+                        if (orig['produto-marca'] != row['produto-marca'] or
+                            orig['produto-descricao'] != row['produto-descricao'] or
+                            orig['validade'] != row['validade']):
+                            ids_alterados.append(row['id'])
+                
+                validacao_ok = True
+                # Validar existentes alterados
+                for _, row in df_existentes.iterrows():
+                    if row['id'] in ids_alterados:
+                        marca = str(row['produto-marca']).strip()
+                        desc = str(row['produto-descricao']).strip()
+                        val = row['validade']
+                        if not marca:
+                            st.error(f"ID {row['id']}: Marca não pode estar vazia.")
+                            validacao_ok = False
+                        if not desc:
+                            st.error(f"ID {row['id']}: Descrição não pode estar vazia.")
+                            validacao_ok = False
+                        if len(desc) > 100:
+                            st.error(f"ID {row['id']}: Descrição excede 100 caracteres.")
+                            validacao_ok = False
+                        if val is None:
+                            st.error(f"ID {row['id']}: Validade é obrigatória.")
+                            validacao_ok = False
+                
+                # Validar novos registros
+                novos_validos = []
+                for _, row in df_novos.iterrows():
+                    marca = str(row['produto-marca']).strip()
+                    desc = str(row['produto-descricao']).strip()
+                    val = row['validade']
+                    if not marca:
+                        st.error("Novo registro: Marca não pode estar vazia.")
+                        validacao_ok = False
+                    elif not desc:
+                        st.error("Novo registro: Descrição não pode estar vazia.")
+                        validacao_ok = False
+                    elif len(desc) > 100:
+                        st.error(f"Novo registro: Descrição excede 100 caracteres.")
+                        validacao_ok = False
+                    elif val is None:
+                        st.error("Novo registro: Validade é obrigatória.")
+                        validacao_ok = False
+                    else:
+                        novos_validos.append({
+                            'produto-marca': marca,
+                            'produto-descricao': desc,
+                            'validade': val.strftime("%d/%m/%Y")
+                        })
+                
+                if validacao_ok:
+                    # Salvar alterações nos registros existentes
+                    for _, row in df_existentes.iterrows():
                         if row['id'] in ids_alterados:
-                            marca = str(row['produto-marca']).strip()
-                            desc = str(row['produto-descricao']).strip()
-                            val = row['validade']
-                            if not marca:
-                                st.error(f"ID {row['id']}: Marca não pode estar vazia.")
+                            try:
+                                atualizar_registro(
+                                    aba_inclusoes,
+                                    row['id'],
+                                    {
+                                        'produto-marca': row['produto-marca'],
+                                        'produto-descricao': row['produto-descricao'],
+                                        'validade': row['validade'].strftime("%d/%m/%Y")
+                                    },
+                                    usuario
+                                )
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar ID {row['id']}: {e}")
                                 validacao_ok = False
-                            if not desc:
-                                st.error(f"ID {row['id']}: Descrição não pode estar vazia.")
-                                validacao_ok = False
-                            if len(desc) > 100:
-                                st.error(f"ID {row['id']}: Descrição excede 100 caracteres.")
-                                validacao_ok = False
-                            if val is None:
-                                st.error(f"ID {row['id']}: Validade é obrigatória.")
-                                validacao_ok = False
+                    
+                    # Inserir novos registros
+                    if novos_validos and validacao_ok:
+                        registros_para_gravar = []
+                        for prod in novos_validos:
+                            registros_para_gravar.append({
+                                "camara": camara_selecionada,
+                                "camara-vaga": vaga_selecionada,
+                                "produto-marca": prod['produto-marca'],
+                                "produto-descricao": prod['produto-descricao'],
+                                "validade": prod['validade']
+                            })
+                        try:
+                            salvar_registros(aba_inclusoes, aba_log, registros_para_gravar, usuario)
+                            st.success(f"{len(registros_para_gravar)} novo(s) produto(s) adicionado(s).")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar novos produtos: {e}")
+                            validacao_ok = False
+                    
                     if validacao_ok:
-                        # Aplica as atualizações
-                        for idx, row in edited_df.iterrows():
-                            if row['id'] in ids_alterados:
-                                try:
-                                    atualizar_registro(
-                                        aba_inclusoes,
-                                        row['id'],
-                                        {
-                                            'produto-marca': row['produto-marca'],
-                                            'produto-descricao': row['produto-descricao'],
-                                            'validade': row['validade'].strftime("%d/%m/%Y")
-                                        },
-                                        usuario
-                                    )
-                                except Exception as e:
-                                    st.error(f"Erro ao atualizar ID {row['id']}: {e}")
-                                    validacao_ok = False
-                        if validacao_ok:
-                            st.success(f"{len(ids_alterados)} registro(s) atualizado(s) com sucesso. O campo 'registro' foi atualizado para a data/hora atual.")
-                            # Limpa a seleção após salvar
-                            if f"selecao_{camara_selecionada}_{vaga_selecionada}" in st.session_state:
-                                del st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"]
-                            time.sleep(1.5)
-                            st.rerun()
+                        msg = f"{len(ids_alterados)} registro(s) atualizado(s)."
+                        if novos_validos:
+                            msg += f" {len(novos_validos)} novo(s) adicionado(s)."
+                        st.success(msg)
+                        # Limpar estado e recarregar
+                        if state_key in st.session_state:
+                            del st.session_state[state_key]
+                        if state_key in st.session_state.selecao:
+                            del st.session_state.selecao[state_key]
+                        time.sleep(1.5)
+                        st.rerun()
         
-        with col2:
-            # Excluir registros selecionados (marcados na coluna 'Selecionar')
+        with col_excluir:
             ids_para_excluir = edited_df[edited_df['Selecionar'] == True]['id'].tolist()
-            if ids_para_excluir:
-                if st.button(f"🗑️ Excluir {len(ids_para_excluir)} selecionado(s)", type="primary", use_container_width=True):
+            # Filtrar apenas IDs positivos (existentes no banco)
+            ids_para_excluir_existentes = [id_ for id_ in ids_para_excluir if id_ > 0]
+            if ids_para_excluir_existentes:
+                if st.button(f"🗑️ Excluir {len(ids_para_excluir_existentes)} selecionado(s)", type="primary", use_container_width=True):
                     with st.spinner("Excluindo registros e gravando log..."):
-                        num = excluir_registros_por_ids(aba_inclusoes, aba_log, ids_para_excluir, usuario)
+                        num = excluir_registros_por_ids(aba_inclusoes, aba_log, ids_para_excluir_existentes, usuario)
                         if num > 0:
                             exibir_mensagem_centralizada(f"{num} registro(s) excluído(s) com sucesso! Log gravado.")
-                            # Limpa a seleção após exclusão
-                            if f"selecao_{camara_selecionada}_{vaga_selecionada}" in st.session_state:
-                                del st.session_state[f"selecao_{camara_selecionada}_{vaga_selecionada}"]
+                            # Limpar estado
+                            if state_key in st.session_state:
+                                del st.session_state[state_key]
+                            if state_key in st.session_state.selecao:
+                                del st.session_state.selecao[state_key]
                             time.sleep(2)
                             st.rerun()
                         else:
